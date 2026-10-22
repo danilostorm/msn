@@ -10,7 +10,7 @@ jobs:
   build:
     runs-on: windows-latest
     permissions:
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -55,3 +55,17 @@ jobs:
           path: dist/StormMSN-Setup.exe
           if-no-files-found: error
           retention-days: 30
+      - name: Publicar instalador direto no GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: wlm2009-setup-v1.0.0
+          name: Storm MSN - Windows Live Messenger 2009 - Instalador
+          body: |
+            Instalador independente do Storm MSN, sem cliente Tkinter.
+            Abre a instalacao original do WLM 2009 (baixada da fonte Escargot com hash fixo)
+            e configura o Switcher ImportMe para im.hoststorm.com.br, com backups.
+            Status: beta. Compatibilidade deve ser validada em computadores dos usuarios.
+            O executavel nao embute nenhum binario proprietario da Microsoft.
+          files: dist/StormMSN-Setup.exe
+          fail_on_unmatched_files: true
+          prerelease: true
