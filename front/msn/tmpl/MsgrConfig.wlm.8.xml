@@ -12,7 +12,7 @@
 			<MaxCallLength>0</MaxCallLength>
 		</Relay>
 		<TrustedDomains>
-			<domain name="escargot.log1p.xyz"/>
+			<domain name="hoststorm.com.br"/>
 		</TrustedDomains>
 		<ErrorResponseTable>
 			<Feature type="0" name="Login">
@@ -70,8 +70,8 @@
 {tabs}
 		</msntabdata>
 		<msntabsettings>
-			<oemdisplaylimit>1</oemdisplaylimit>
-			<oemtotallimit>1</oemtotallimit>
+			<oemdisplaylimit>0</oemdisplaylimit>
+			<oemtotallimit>0</oemtotallimit>
 		</msntabsettings>
 	</TabConfig>
 	<AbchCfg>
@@ -85,9 +85,9 @@
 			<TextAdServer>https://msn.hoststorm.com.br/etc/text-ad-service</TextAdServer>
 		</AdMainConfig>
 		<AppDirConfig>
-			<AppDirPageURL>https://msn-app-directory.escargot.log1p.xyz/AppDirectory/Directory.aspx?L=en-us</AppDirPageURL>
-			<AppDirSeviceURL>https://msn-app-directory.escargot.log1p.xyz/AppDirectory/AppDirectory.asmx</AppDirSeviceURL>
-			<AppDirVersionURL>https://msn-app-directory.escargot.log1p.xyz/AppDirectory/GetAppdirVersion.aspx</AppDirVersionURL>
+			<AppDirPageURL>https://msn.hoststorm.com.br/AppDirectory/Directory.aspx?L=en-us</AppDirPageURL>
+			<AppDirSeviceURL>https://msn.hoststorm.com.br/AppDirectory/AppDirectory.asmx</AppDirSeviceURL>
+			<AppDirVersionURL>https://msn.hoststorm.com.br/AppDirectory/GetAppdirVersion.aspx</AppDirVersionURL>
 		</AppDirConfig>
 		<Contacts>
 			<ABPendingRequests>
@@ -134,7 +134,7 @@
 		</MSNSearch>
 		<MsnTodayConfig>
 			<MsnTodaySiteID>6528</MsnTodaySiteID>
-			<MsnTodayURL>https://msn.hoststorm.com.br/etc/escargot-today</MsnTodayURL>
+			<MsnTodayURL>https://msn.hoststorm.com.br/</MsnTodayURL>
 			<Flags>2</Flags>
 		</MsnTodayConfig>
 		<OneCare Enabled="0"/>
