@@ -12,3 +12,6 @@ pytz
 cryptography
 
 python-dateutil==2.9.0.post0
+
+# Native WSS transport E2E regression tests
+websockets==15.0.1
