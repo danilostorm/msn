@@ -32,6 +32,15 @@ UPSTREAM_ZIP_URL = (
 UPSTREAM_ZIP_SHA256 = "4aa347b352dc33d4628c4e85bdf2e702e72aaaaf2fd86206f2611942ab72f2f0"
 SWITCHER_ZIP_URL = "https://storage.levelleap.com/nina/clients/msnp/escargot-switcher.zip"
 SWITCHER_SHA256 = "f3d88953c887c813887e37b5047173d104aeb3073fb44c235e231b028dc1d8b7"
+# Official NINA / Escargot compatibility update for Windows 11 24H2+.
+WIN11_CONTACTS_URL = "https://static.nina.chat/distro/EscargotWin24H2.zip"
+WIN11_CONTACTS_SHA256 = "125213062071f17aed267cde94ecfb3193ca21cacec2c82f257c0cfde1f17ae8"
+WIN11_CONTACTS_FILES = {
+    "EscargotWin11Patcher.exe": 34_718_208,
+    "av_libglesv2.dll": 4_440_576,
+    "libHarfBuzzSharp.dll": 1_607_216,
+    "libSkiaSharp.dll": 9_414_184,
+}
 NS_URL = "im.hoststorm.com.br"
 WEB_URL = "msn.hoststorm.com.br"
 
@@ -89,6 +98,60 @@ def read_verified(url, checksum, max_length, log):
         raise RuntimeError("Arquivo bloqueado: assinatura SHA-256 não coincide com a versão verificada.")
     log("Integridade SHA-256 confirmada.")
     return data
+
+
+def needs_win11_contacts_patch():
+    """Win11 24H2 = build 26100, 25H2+ = build 26200+."""
+    try:
+        return sys.getwindowsversion().build >= 26100
+    except AttributeError:
+        return False
+
+
+def unpack_official_win11_patch(package, directory):
+    """Extract only the four hash-verified vendor files; do not execute."""
+    with zipfile.ZipFile(io.BytesIO(package)) as archive:
+        names = set(archive.namelist())
+        if names != set(WIN11_CONTACTS_FILES):
+            raise RuntimeError("Conteúdo inesperado no ZIP oficial da correção Win11.")
+        for name, expected_size in WIN11_CONTACTS_FILES.items():
+            info = archive.getinfo(name)
+            if info.file_size != expected_size:
+                raise RuntimeError("Tamanho inválido no componente: " + name)
+            (directory / name).write_bytes(archive.read(name))
+        patcher = directory / "EscargotWin11Patcher.exe"
+        if patcher.read_bytes()[:2] != b"MZ":
+            raise RuntimeError("Executável de correção do Win11 inválido.")
+    return patcher
+
+
+def run_win11_contacts_patch(paths, log):
+    """Launch the verified official GUI tool, with user's explicit consent.
+
+    The tool is third-party and may modify Windows compatibility components.
+    Do not claim a successful repair from exit code alone.
+    """
+    data = read_verified(
+        WIN11_CONTACTS_URL, WIN11_CONTACTS_SHA256, 30_000_000, log
+    )
+    with tempfile.TemporaryDirectory(prefix="StormMSN-Win11-24H2-") as d:
+        folder = Path(d)
+        patcher = unpack_official_win11_patch(data, folder)
+        log("Abrindo o utilitário oficial Escargot para Windows 11 24H2/25H2.")
+        log("Aplique a correção na janela e feche o utilitário quando terminar.")
+        result = subprocess.run([str(patcher)], cwd=str(folder))
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Utilitário de contatos terminou com código {result.returncode}. "
+                "O WLM permanece instalado; consulte o erro exibido na janela."
+            )
+    # Preserve the privately hosted Storm MSN endpoints even if the third-party
+    # tool rewrote its normal Escargot INI settings.
+    for path in paths:
+        (path.parent / (path.name + "-escargot.ini")).write_bytes(SWITCHER_INI)
+    log("Configuração própria do Storm MSN restaurada nos dois INIs.")
+    log("Utilitário finalizado. Reinicie o Windows antes de testar o login.")
+    return True
 
 
 def load_switcher(log):
@@ -215,7 +278,7 @@ def apply_patch_one(path, dll, log):
     log("Servidor Storm MSN aplicado a " + path.name + ".")
 
 
-def install(log):
+def install(log, apply_win11_fix=False):
     log("Verificando instalações do Windows Live Messenger 2009...")
     paths = program_paths()
     if paths is None:
@@ -247,18 +310,26 @@ def install(log):
     except BaseException:
         restore(paths, backup, log)
         raise
-    log("INSTALAÇÃO CONCLUÍDA! WLM original conectado ao Storm MSN.")
+    repaired_win11 = False
+    if apply_win11_fix and needs_win11_contacts_patch():
+        log("Windows 11 24H2+ detectado: preparando correção da lista de contatos.")
+        repaired_win11 = run_win11_contacts_patch(paths, log)
+    log("CONFIGURAÇÃO DO WLM 2009 CONCLUÍDA!")
     log("Mensagens: " + NS_URL + ":1863 e :1864")
     log("Autenticação e contatos: https://" + WEB_URL)
-    log("Abra o Windows Live Messenger 2009 e entre com sua conta do site.")
+    if repaired_win11:
+        log("REINICIE o computador antes de entrar no Messenger.")
+    else:
+        log("Abra o Windows Live Messenger 2009 e entre com sua conta do site.")
+    return repaired_win11
 
 
 class SetupUI:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Storm MSN — Instalação do Windows Live Messenger 2009")
-        self.root.geometry("675x515")
-        self.root.minsize(600, 480)
+        self.root.geometry("705x585")
+        self.root.minsize(620, 535)
         self.root.configure(bg="#e5f5ff")
         label = tk.Label(
             self.root, text="🟢 Storm MSN", bg="#e5f5ff", fg="#087cae",
@@ -279,6 +350,24 @@ class SetupUI:
             self.root, height=12, wrap="word", state="disabled", font=("Consolas", 9)
         )
         self.logbox.pack(fill="both", expand=True, padx=21, pady=10)
+        self.affected_win11 = needs_win11_contacts_patch()
+        self.apply_24h2_fix = tk.BooleanVar(value=False)
+        if self.affected_win11:
+            tk.Checkbutton(
+                self.root,
+                text="Corrigir erro da lista de contatos (Windows 11 24H2/25H2)",
+                variable=self.apply_24h2_fix,
+                bg="#e5f5ff", fg="#125d87",
+                activebackground="#e5f5ff",
+                font=("Segoe UI", 10, "bold"),
+            ).pack(pady=(7, 0))
+            tk.Label(
+                self.root,
+                text="Abre o utilitário oficial Escargot, que pode alterar componentes do Windows. "
+                     "Use apenas se estiver com o erro de contatos.",
+                wraplength=600, justify="center",
+                bg="#e5f5ff", fg="#66768b",
+            ).pack(pady=(1, 5))
         self.button = tk.Button(
             self.root, text="INSTALAR STORM MSN",
             bg="#0885ba", fg="white", font=("Segoe UI", 13, "bold"),
@@ -301,13 +390,25 @@ class SetupUI:
         self.logbox.config(state="disabled")
 
     def start(self):
+        use_24h2 = self.affected_win11 and self.apply_24h2_fix.get()
+        if use_24h2:
+            agreed = messagebox.askyesno(
+                "Correção para Windows 11 24H2/25H2",
+                "Será executado o utilitário original do Escargot/NINA para a "
+                "incompatibilidade da lista de contatos no Windows 11. "
+                "Esse programa de terceiros pode alterar componentes locais.\n\n"
+                "Deseja prosseguir? Recomendamos criar um ponto de restauração antes."
+            )
+            if not agreed:
+                return
         self.button.config(state="disabled", text="INSTALANDO...")
         def task():
             try:
-                install(self.append)
+                repaired = install(self.append, apply_win11_fix=use_24h2)
+                note = ("Reinicie o Windows e teste o Messenger." if repaired else
+                        "Abra o WLM 2009 e entre com sua conta.")
                 self.root.after(0, lambda: messagebox.showinfo(
-                    "Storm MSN", "Instalação concluída!\n"
-                    "Agora abra o Windows Live Messenger 2009 e entre com sua conta."
+                    "Storm MSN", "Configuração concluída!\n" + note
                 ))
             except BaseException as exc:
                 self.append("ERRO: " + str(exc))

@@ -64,6 +64,15 @@ jobs:
           if (-not $wlcomm -or $wlcomm.Length -ne 32768) { throw "wlcomm original inesperado" }
           $env:STORM_WLCOMM_FIXTURE=$wlcomm.FullName
           python -m unittest discover -s installer -p 'test_setup.py' -v
+      - name: Validar o patch oficial NINA para Windows 11 24H2+
+        shell: pwsh
+        run: |
+          $zip=Join-Path $env:RUNNER_TEMP 'EscargotWin24H2.zip'
+          Invoke-WebRequest -Uri 'https://static.nina.chat/distro/EscargotWin24H2.zip' -OutFile $zip
+          $digest=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($digest -ne '125213062071f17aed267cde94ecfb3193ca21cacec2c82f257c0cfde1f17ae8') { throw "Patcher 24H2 integrity mismatch" }
+          $env:STORM_WIN11_FIX_FIXTURE=$zip
+          python -m unittest discover -s installer -p 'test_setup.py' -v
       - name: Compilar executavel de instalacao unico
         run: pyinstaller --noconfirm --clean --onefile --windowed --uac-admin --name "StormMSN-Setup" installer/storm_msn_setup.py
       - name: Conferir EXE
@@ -82,10 +91,13 @@ jobs:
       - name: Publicar instalador direto no GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: wlm2009-setup-v1.0.1
-          name: Storm MSN - Windows Live Messenger 2009 - Instalador v1.0.1
+          tag_name: wlm2009-setup-v1.0.2
+          name: Storm MSN - Windows Live Messenger 2009 - Instalador v1.0.2
           body: |
-            Corrigida validacao do wlcomm.exe original de 32768 bytes e adicionados testes da imagem oficial WLM 2009.
+            Windows 11 24H2 e 25H2: opcao para abrir a correcao oficial Escargot para o erro de lista de contatos.
+            Correcao executada somente apos escolha explicita, usando ZIP verificado por SHA-256 da NINA.
+            Mantem WLM 2009 original e enderecos privados do Storm MSN. Recomenda reinicio.
+            Mantida a correcao de validacao do wlcomm.exe original de 32768 bytes.
             Instalador independente do Storm MSN, sem cliente Tkinter.
             Abre a instalacao original do WLM 2009 (baixada da fonte Escargot com hash fixo)
             e configura o Switcher ImportMe para im.hoststorm.com.br, com backups.
