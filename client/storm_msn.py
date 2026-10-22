@@ -31,7 +31,7 @@ class App:
         tk.Label(box,text="🟢 Storm MSN",bg="#def1fb",fg="#097cab",font=("Segoe UI",26,"bold")).pack(pady=25)
         tk.Label(box,text="O seu Messenger está de volta!",bg="#def1fb",fg="#5985a0").pack(pady=5)
         self.inputs=[]
-        for name,initial,hide in [("Servidor","127.0.0.1",False),("E-mail","",False),("Senha","",True)]:
+        for name,initial,hide in [("Servidor","msn.hoststorm.com.br",False),("E-mail","",False),("Senha","",True)]:
             tk.Label(box,text=name,bg="#def1fb",fg="#336d8d",font=("Segoe UI",10,"bold")).pack(anchor="w",pady=(20,5))
             e=ttk.Entry(box,show="●" if hide else "")
             e.pack(fill="x",ipady=7)

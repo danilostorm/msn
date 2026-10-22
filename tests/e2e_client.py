@@ -1,5 +1,6 @@
 """Exercise the actual Storm MSN desktop client's transport against server."""
 import asyncio
+import os
 import queue
 import secrets
 import sys
@@ -10,6 +11,14 @@ from util.misc import gen_uuid
 import settings
 sys.path.insert(0,"/app/client")
 from msnp7 import Protocol
+if os.environ.get("MSN_DEBUG")=="1":
+    prior=Protocol.until
+    async def traced(self,reader,op):
+        print("WAIT",self.email.split("@")[0],op,flush=True)
+        v=await prior(self,reader,op)
+        print("GOT",self.email.split("@")[0],op,flush=True)
+        return v
+    Protocol.until=traced
 
 async def main():
     suffix=secrets.token_hex(5)
@@ -23,10 +32,11 @@ async def main():
             ses.add(obj)
     print("TEMP_USERS_CREATED")
     tasks=[]
+    a=b=None
     try:
         q1=queue.Queue();q2=queue.Queue()
-        a=Protocol("127.0.0.1",emails[0],pw[0],q1)
-        b=Protocol("127.0.0.1",emails[1],pw[1],q2)
+        a=Protocol(os.environ.get("MSN_E2E_HOST","127.0.0.1"),emails[0],pw[0],q1)
+        b=Protocol(os.environ.get("MSN_E2E_HOST","127.0.0.1"),emails[1],pw[1],q2)
         tasks=[asyncio.create_task(a.login()),asyncio.create_task(b.login())]
         async def expect(q,kind,deadline=12):
             until=asyncio.get_running_loop().time()+deadline
@@ -49,6 +59,8 @@ async def main():
         assert "mensagem-real-do-Storm-MSN" in ev[-1],ev
         print("PASS_NATIVE_CLIENT_CHAT_MESSAGE")
     finally:
+        if a or b:
+            await asyncio.gather(*(x.disconnect() for x in (a,b) if x),return_exceptions=True)
         for t in tasks:t.cancel()
         await asyncio.gather(*tasks,return_exceptions=True)
         with db.session() as ses:

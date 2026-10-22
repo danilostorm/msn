@@ -6,7 +6,8 @@ import secrets
 import time
 import hmac
 from collections import defaultdict, deque
-from aiohttp import web
+from aiohttp import web, WSMsgType
+import asyncio
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from core.conn import Conn
@@ -18,6 +19,7 @@ import settings
 SESSION = "storm_msn_session"
 CSRF = "storm_msn_csrf"
 RATE = defaultdict(deque)
+ACTIVE_WS = defaultdict(int)
 EMAIL = re.compile(r"^[A-Za-z0-9._%+\-]{1,64}@[A-Za-z0-9.\-]{3,190}$")
 NAME = re.compile(r"^[A-Za-z0-9_.\-]{3,24}$")
 HDR = {"Cache-Control":"no-store","X-Content-Type-Options":"nosniff","Referrer-Policy":"strict-origin-when-cross-origin","Content-Security-Policy":"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"}
@@ -117,10 +119,52 @@ async def logout(req):
     req.app["backend"].auth_service.pop_token("storm-portal",req.cookies.get(SESSION,""))
     r=web.HTTPFound("/");r.del_cookie(SESSION);return r
 async def clients(req):
-    return page('''<div class="card"><h2>Clientes Storm MSN</h2><p>O protocolo MSNP7 já passou no teste de mensagens. Clientes clássicos requerem redirecionamento dos serviços de login e configuração.</p><p><a class="btn" href="https://github.com/danilostorm/msn">Cliente Storm MSN (código)</a> <a class="btn alt" href="https://www.escargot.chat/download/switcher/">Escargot Switcher</a></p><p class="note">O uso com MSN 7.5 e Windows Live 2009 ainda precisa de teste com cliente original. Não use patchers desconhecidos.</p></div>''',"Clientes — Storm MSN")
+    return page('''<div class="card"><h2>Clientes Storm MSN</h2><p>O protocolo MSNP7 já passou no teste de mensagens. Clientes clássicos requerem redirecionamento dos serviços de login e configuração.</p><p><a class="btn" href="https://github.com/danilostorm/msn/actions/workflows/build-client.yml">Cliente Windows (builds)</a> <a class="btn alt" href="https://github.com/danilostorm/msn/tree/main/client">Código do cliente</a></p><p class="note">Para Windows: abra os builds do GitHub Actions, escolha a execução aprovada mais recente e obtenha Storm-MSN-Windows em Artifacts (pode exigir login no GitHub). No campo Servidor, use msn.hoststorm.com.br. O MSN 7.5 original e Windows Live 2009 ainda não foram validados com o Storm MSN.</p></div>''',"Clientes — Storm MSN")
 async def health(req):return web.json_response({"service":"storm-msn","status":"ok"},headers={"Cache-Control":"no-store"})
+async def websocket_bridge(req):
+    """Encrypted WSS transport for native/client-local-gateway, fixed MSN ports only."""
+    port=req.match_info.get("port")
+    if port not in ("1863","1864"):raise web.HTTPNotFound()
+    origin=req.headers.get("Origin","")
+    if origin and origin!="https://msn.hoststorm.com.br":raise web.HTTPForbidden()
+    public_ip=req.headers.get("CF-Connecting-IP",req.remote) if req.remote in ("127.0.0.1","::1") else req.remote
+    if ACTIVE_WS[public_ip]>=8:raise web.HTTPTooManyRequests()
+    if not rate(req,"wss",45,60):raise web.HTTPTooManyRequests()
+    try:
+        reader,writer=await asyncio.wait_for(asyncio.open_connection("127.0.0.1",int(port)),8)
+    except (OSError,asyncio.TimeoutError):
+        raise web.HTTPServiceUnavailable()
+    ws=web.WebSocketResponse(max_msg_size=32768,heartbeat=30,compress=False)
+    await ws.prepare(req)
+    ACTIVE_WS[public_ip]+=1
+    async def tcp_to_ws():
+        try:
+            while not ws.closed:
+                chunk=await reader.read(16384)
+                if not chunk:break
+                await ws.send_bytes(chunk)
+        finally:await ws.close()
+    task=asyncio.create_task(tcp_to_ws())
+    try:
+        async for msg in ws:
+            if msg.type==WSMsgType.BINARY:
+                writer.write(msg.data)
+                await asyncio.wait_for(writer.drain(),10)
+            elif msg.type in (WSMsgType.TEXT,WSMsgType.ERROR):
+                break
+    finally:
+        task.cancel()
+        try:await task
+        except asyncio.CancelledError:pass
+        writer.close()
+        try:await writer.wait_closed()
+        except Exception:pass
+        ACTIVE_WS[public_ip]-=1
+    return ws
+
 def register(app,backend):
     app["backend"]=backend
+    app.router.add_get("/ws/{port}",websocket_bridge)
     for route,path,handler in [('get','/',home),('get','/registrar',register_get),('post','/registrar',register_post),
         ('get','/entrar',login_get),('post','/entrar',login_post),('get','/conta',account),
         ('post','/sair',logout),('get','/clientes',clients),('get','/api/health',health)]:

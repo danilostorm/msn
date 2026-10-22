@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: python -m pip install --upgrade pip pyinstaller
+      - run: python -m pip install --upgrade pip pyinstaller websockets
       - run: pyinstaller --noconfirm --clean --onefile --windowed --name Storm-MSN client/storm_msn.py
       - uses: actions/upload-artifact@v4
         with:

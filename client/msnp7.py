@@ -1,6 +1,7 @@
 # Storm MSN MSNP7 protocol transport (unencrypted legacy protocol).
 import asyncio
 import hashlib
+from ws_transport import open_transport
 
 class Protocol:
     def __init__(self,host,email,password,events):
@@ -14,6 +15,8 @@ class Protocol:
         self.waiting={}
         self.calls=[]
         self.number=10
+        self.closing=False
+        self.switchboard_tasks=set()
     def emit(self,*event):self.events.put(event)
     def send(self,w,command,data=b""):
         w.write(command.encode()+b"\r\n"+data)
@@ -33,7 +36,7 @@ class Protocol:
         raise RuntimeError("Protocolo sem resposta: "+op)
     async def login(self):
         try:
-            self.reader,self.writer=await asyncio.open_connection(self.host,1863)
+            self.reader,self.writer=await open_transport(self.host,1863)
             r,w=self.reader,self.writer
             self.send(w,"VER 1 MSNP7 CVR0")
             response,_=await self.until(r,"VER")
@@ -65,21 +68,26 @@ class Protocol:
                 if cmd=="FLN" and len(words)>1:self.emit("presence",words[1],"offline")
                 if cmd=="XFR" and len(words)>5 and words[2]=="SB" and self.calls:
                     email=self.calls.pop(0)
-                    asyncio.create_task(self.outgoing(email,words[5]))
+                    self._spawn(self.outgoing(email,words[5]))
                 if cmd=="RNG" and len(words)>5:
-                    asyncio.create_task(self.incoming(words[1],words[4],words[5]))
+                    self._spawn(self.incoming(words[1],words[4],words[5]))
         except Exception as ex:
-            self.emit("error",str(ex))
+            if not self.closing:self.emit("error",str(ex))
         finally:self.emit("offline")
+    def _spawn(self,coro):
+        task=asyncio.create_task(coro)
+        self.switchboard_tasks.add(task)
+        task.add_done_callback(self.switchboard_tasks.discard)
+
     async def outgoing(self,email,token):
-        r,w=await asyncio.open_connection(self.host,1864)
+        r,w=await open_transport(self.host,1864)
         self.send(w,"USR 1 "+self.email+" "+token)
         await self.until(r,"USR")
         self.send(w,"CAL 2 "+email)
         await self.until(r,"CAL")
         await self.sb_loop(r,w,email)
     async def incoming(self,chat_id,token,email):
-        r,w=await asyncio.open_connection(self.host,1864)
+        r,w=await open_transport(self.host,1864)
         self.send(w,"ANS 1 "+self.email+" "+token+" "+chat_id)
         await self.until(r,"ANS")
         self.chats[email]=w
@@ -101,6 +109,9 @@ class Protocol:
         finally:
             self.chats.pop(email,None)
             w.close()
+            if hasattr(w,"wait_closed"):
+                try:await w.wait_closed()
+                except Exception:pass
             self.emit("closed",email)
     async def send_message(self,email,text):
         if email not in self.chats:
@@ -127,5 +138,17 @@ class Protocol:
         self.number+=1
         self.send(self.writer,f"CHG {self.number} {status}")
     async def disconnect(self):
-        if self.writer:self.send(self.writer,"OUT");self.writer.close()
+        self.closing=True
+        if self.writer:
+            self.send(self.writer,"OUT")
+            self.writer.close()
+        for w in list(self.chats.values()):
+            w.close()
+        writers=list(self.chats.values()) + ([self.writer] if self.writer else [])
+        await asyncio.gather(*(w.wait_closed() for w in writers if hasattr(w,"wait_closed")),
+            return_exceptions=True)
+        if self.switchboard_tasks:
+            for task in tuple(self.switchboard_tasks):task.cancel()
+            await asyncio.gather(*tuple(self.switchboard_tasks),return_exceptions=True)
+
 

@@ -34,3 +34,13 @@ Código original de [Escargot Chat](https://gitlab.com/escargot-chat/server), so
 
 ## Portal de contas
 A aplicação inclui páginas /, /registrar, /entrar, /conta, /clientes e /api/health. Cadastro público desligado por padrão. Ative apenas com HTTPS, rate limiting na borda e moderação.
+
+
+## Publicação atual e testes em 2026-10-22
+- Portal HTTPS público: https://msn.hoststorm.com.br
+- Cliente nativo Windows experimental: veja o artefato mais recente em https://github.com/danilostorm/msn/actions/workflows/build-client.yml
+- Transporte do cliente Storm MSN: WSS https://msn.hoststorm.com.br/ws/1863 e /ws/1864 (WebSocket binário autenticado somente no protocolo MSN)
+- O proxy WSS substitui o encaminhamento TCP público apenas para o cliente Storm MSN. Clientes MSN Microsoft clássicos necessitam patch/bridge e validação própria.
+- E2E testado: python -m tests.e2e_client executado dentro do contêiner, com MSN_E2E_HOST=msn.hoststorm.com.br e bibliotecas websockets.
+- Cadastro público DESLIGADO até verificação de e-mail/controle de abuso, termos e testes com cliente Windows; não prometer disponibilidade geral.
+- Backup SQLite, métricas persistentes, limitação por conta e patch do cliente Microsoft original permanecem pendências.
