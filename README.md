@@ -59,3 +59,6 @@ O cliente Microsoft nao e redistribuido por este repositorio.
 - A negociacao MSNP15 por rede publica nao prova login SSO, sincronizacao de
   contatos nem compatibilidade do WLM 2009 em Windows real; testes pendentes.
 - Cadastro publico permanece desligado.
+
+## Cadastro de testes
+Cadastro de testes habilitado via MSN_PUBLIC_SIGNUP=1. Protecoes: CSRF, honeypot, limite por IP (3/hora) e ate 40 novas contas por 24h. Senha WLM 2009 entre 12 e 15 caracteres. Ainda nao ha confirmacao por e-mail; evitar abertura irrestrita do servico ate revisao.

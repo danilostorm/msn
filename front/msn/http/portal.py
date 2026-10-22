@@ -8,6 +8,7 @@ import hmac
 from collections import defaultdict, deque
 from aiohttp import web, WSMsgType
 import asyncio
+from datetime import datetime, timedelta
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from core.conn import Conn
@@ -58,7 +59,7 @@ def rate(req,tag,limit,window):
     q.append(now);return True
 def token(req):return '<input type="hidden" name="csrf" value="'+csrf(req)+'">'
 async def home(req):
-    return page('''<div class="hero"><div><h1>O seu MSN <span>está de volta.</span></h1><p>Encontre seus amigos, mostre seu status e reviva o Messenger em uma rede independente.</p><p><a href="/registrar" class="btn">Criar conta</a><a href="/clientes" class="btn alt">Baixar WLM 2009</a></p><p style="font-size:13px">Projeto em testes. Abertura pública ainda não concluída.</p></div><div class="card"><h2>💬 Bate-papo clássico</h2><div class="msg"><b>Amigo • Online 🟢</b>Você lembra do MSN?</div><div class="msg right"><b>Você</b>Lembro até dos emoticons 😎</div><div class="msg"><b>Amigo</b>🔔 Chamando sua atenção!</div></div></div><div class="grid"><div class="feature"><b>🟢 Presença online</b><p>Veja quando seus amigos estiverem conectados.</p></div><div class="feature"><b>💬 Conversas</b><p>Conexão real utilizando o protocolo MSN.</p></div><div class="feature"><b>🖥️ Nostalgia</b><p>Clientes clássicos e cliente próprio do Storm MSN.</p></div></div>''')
+    return page('''<div class="hero"><div><h1>O seu MSN <span>está de volta.</span></h1><p>Encontre seus amigos, mostre seu status e reviva o Messenger em uma rede independente.</p><p><a href="/registrar" class="btn">Criar conta</a><a href="/clientes" class="btn alt">Baixar WLM 2009</a></p><p style="font-size:13px">Cadastro de testes liberado. Windows Live Messenger 2009 ainda em validação.</p></div><div class="card"><h2>💬 Bate-papo clássico</h2><div class="msg"><b>Amigo • Online 🟢</b>Você lembra do MSN?</div><div class="msg right"><b>Você</b>Lembro até dos emoticons 😎</div><div class="msg"><b>Amigo</b>🔔 Chamando sua atenção!</div></div></div><div class="grid"><div class="feature"><b>🟢 Presença online</b><p>Veja quando seus amigos estiverem conectados.</p></div><div class="feature"><b>💬 Conversas</b><p>Conexão real utilizando o protocolo MSN.</p></div><div class="feature"><b>🖥️ Nostalgia</b><p>Clientes clássicos e cliente próprio do Storm MSN.</p></div></div>''')
 async def register_get(req,error="",success=""):
     if os.environ.get("MSN_PUBLIC_SIGNUP","0")!="1":
         return page('<div class="card form"><h2>Cadastro em preparação</h2><p>O servidor está em testes. O cadastro público será liberado após a configuração segura de HTTPS e do cliente.</p><a class="btn" href="/clientes">Ver clientes</a></div>')
@@ -67,27 +68,31 @@ async def register_get(req,error="",success=""):
     body=f'''<div class="card form"><h2>Crie sua conta</h2>{err}<form action="/registrar" method="post">{token(req)}
     <label>Usuário</label><input name="name" minlength="3" maxlength="24" required autocomplete="username" placeholder="Seu apelido">
     <label>E-mail</label><input type="email" name="email" maxlength="254" required autocomplete="email" placeholder="voce@exemplo.com">
-    <label>Senha exclusiva do Storm MSN</label><input type="password" name="password" minlength="12" maxlength="128" required autocomplete="new-password">
-    <p class="note">Para compatibilidade com MSN antigos, a senha também terá um hash MD5. Não reutilize a senha de nenhum serviço atual.</p><button class="btn">Criar conta</button></form></div>'''
+    <label>Senha exclusiva do Storm MSN</label><input type="password" name="password" minlength="12" maxlength="15" required autocomplete="new-password">
+    <input name="website" type="text" style="display:none" tabindex="-1" autocomplete="off" aria-hidden="true">
+    <p class="note">Para o Windows Live Messenger 2009, utilize uma senha <strong>exclusiva de 12 a 15 caracteres</strong>. Não reutilize senhas de outros serviços. O protocolo antigo não oferece segurança moderna.</p><button class="btn">Criar conta</button></form></div>'''
     return with_csrf(req,page(body,"Cadastro — Storm MSN"))
 async def register_post(req):
     if os.environ.get("MSN_PUBLIC_SIGNUP","0")!="1":raise web.HTTPForbidden()
     if req.content_length and req.content_length>4096:raise web.HTTPRequestEntityTooLarge(max_size=4096,actual_size=req.content_length)
     p=await req.post()
     if not valid_csrf(req,p):return await register_get(req,"Atualize a página e tente novamente.")
-    if not rate(req,"reg",4,3600):return await register_get(req,"Muitas tentativas. Volte mais tarde.")
+    if not rate(req,"reg",3,3600):return await register_get(req,"Muitas tentativas. Volte mais tarde.")
+    if str(p.get("website","")).strip():raise web.HTTPForbidden()
     email=str(p.get("email","")).strip().lower();name=str(p.get("name","")).strip();pw=str(p.get("password",""))
-    if not EMAIL.fullmatch(email) or ".." in email or not NAME.fullmatch(name) or not 12<=len(pw)<=128:
-        return await register_get(req,"Confira seu e-mail, usuário e senha (mínimo 12 caracteres).")
+    if not EMAIL.fullmatch(email) or ".." in email or not NAME.fullmatch(name) or not 12<=len(pw)<=15:
+        return await register_get(req,"Confira seu e-mail, usuário e senha (senha entre 12 e 15 caracteres).")
     try:
         with Conn(settings.DB).session() as sess:
+            if sess.query(DBUser).filter(DBUser.date_created >= datetime.utcnow()-timedelta(hours=24)).count() >= 40:
+                return await register_get(req,"Novas contas limitadas temporariamente. Tente amanhã.")
             if sess.query(DBUser).filter((func.lower(DBUser.email)==email)|(func.lower(DBUser.username)==name.lower())).first():
                 return await register_get(req,"Usuário ou e-mail já cadastrado.")
             user=DBUser(uuid=gen_uuid(),email=email,username=name,verified=False,friendly_name=name,groups={},settings={})
             set_passwords(user,pw,support_old_msn=True)
             sess.add(user)
     except IntegrityError:return await register_get(req,"Usuário ou e-mail já cadastrado.")
-    return await register_get(req,success="Sua conta Storm MSN já está no banco do servidor.")
+    return await register_get(req,success="Conta criada! Você já pode entrar no painel e, após instalar o WLM 2009 configurado, fazer login no Messenger.")
 async def login_get(req,error=""):
     err='<div class="err">'+esc(error)+'</div>' if error else ''
     return with_csrf(req,page(f'''<div class="card form"><h2>Entrar</h2>{err}<form action="/entrar" method="post">{token(req)}
@@ -123,14 +128,14 @@ async def clients(req):
 <h2>Windows Live Messenger 2009 original — em português</h2>
 <p>O Storm MSN usa o <strong>Windows Live Messenger 2009 da Microsoft (14.0.8117.0416)</strong>, adaptado pelo Escargot Switcher. É o Messenger clássico, com sua interface e lista de contatos originais. <strong>Não é o cliente experimental em Python.</strong></p>
 <div class="grid">
-  <div class="feature"><b>1. Instale o WLM 2009</b><p>Baixe no portal oficial do Escargot, selecione WLM 2009 <strong>Download Patched</strong> em PT-BR.</p><p><a class="btn" href="https://escargot.chat/download/msn/lang/pt-br/" rel="noopener noreferrer">Baixar WLM 2009</a></p></div>
-  <div class="feature"><b>2. Configure o Storm MSN</b><p>Baixe a configuração própria com os arquivos INI, assistente PowerShell e instruções.</p><p><a class="btn" href="/downloads/StormMSN-WLM2009-Configuracao.zip">Configuração Storm MSN</a></p></div>
+  <div class="feature"><b>1. Instale o WLM 2009</b><p>Assistente baixa o WLM 2009 original pre-patcheado da fonte oficial do Escargot, verifica SHA256, instala e configura automaticamente o Storm MSN.</p><p><a class="btn" href="/downloads/StormMSN-WLM2009-Instalador.zip">Instalar WLM 2009 + Storm MSN</a></p></div>
+  <div class="feature"><b>2. Configure o Storm MSN</b><p>Se o WLM 2009 pre-patcheado ja esta instalado, use apenas este pacote de configuracao.</p><p><a class="btn" href="/downloads/StormMSN-WLM2009-Configuracao.zip">Configuração Storm MSN</a></p></div>
   <div class="feature"><b>3. Entre na sua conta</b><p>Após instalar e configurar o cliente, entre com uma conta criada especificamente para o Storm MSN.</p><p><a class="btn alt" href="/registrar">Cadastro de usuário</a></p></div>
 </div>
 <h2 style="margin-top:38px">Endereços do serviço</h2>
 <p><strong>Servidor de mensagens:</strong> im.hoststorm.com.br (TCP 1863 e 1864, via Oracle e AEROCOOL).<br>
 <strong>Configuração e autenticação:</strong> msn.hoststorm.com.br (HTTPS).</p>
-<p class="note"><strong>Status de testes:</strong> servidor MSNP15 acessível pela internet, serviços HTTPS operacionais e configuração de Switcher preparada. O login completo com o Windows Live Messenger 2009, o wlcomm.exe e os contatos <strong>ainda precisam ser validados com o cliente gráfico Windows</strong>. O cadastro público permanece fechado até o fim dos testes.</p>
+<p class="note"><strong>Status de testes:</strong> servidor MSNP15 acessível pela internet, serviços HTTPS operacionais e configuração de Switcher preparada. O login completo com o Windows Live Messenger 2009, o wlcomm.exe e os contatos <strong>ainda precisam ser validados com o cliente gráfico Windows</strong>. Cadastro de contas de teste habilitado. A compatibilidade final do WLM 2009 ainda está em validação.</p>
 <p class="note">Para sua segurança, a configuração NÃO muda o arquivo HOSTS do Windows, não pede instalação de certificados raiz e não substitui executáveis da Microsoft. O WLM original é um programa antigo e as mensagens não possuem criptografia ponta a ponta.</p>
 </section>""", "Windows Live Messenger 2009 — Storm MSN")
 
@@ -143,6 +148,16 @@ async def download_wlm_config(req):
       "Content-Disposition": 'attachment; filename="StormMSN-WLM2009-Configuracao.zip"',
       "X-Content-Type-Options":"nosniff",
       "Cache-Control":"no-store",
+    })
+
+async def download_wlm_installer(req):
+    from pathlib import Path
+    pack=Path("/data/downloads/StormMSN-WLM2009-Instalador.zip")
+    if not pack.is_file():raise web.HTTPNotFound()
+    return web.FileResponse(pack,headers={
+        "Content-Disposition":'attachment; filename="StormMSN-WLM2009-Instalador.zip"',
+        "X-Content-Type-Options":"nosniff",
+        "Cache-Control":"no-store",
     })
 
 async def health(req):return web.json_response({"service":"storm-msn","status":"ok"},headers={"Cache-Control":"no-store"})
@@ -191,6 +206,7 @@ def register(app,backend):
     app["backend"]=backend
     app.router.add_get("/ws/{port}",websocket_bridge)
     app.router.add_get("/downloads/StormMSN-WLM2009-Configuracao.zip",download_wlm_config)
+    app.router.add_get("/downloads/StormMSN-WLM2009-Instalador.zip",download_wlm_installer)
     for route,path,handler in [('get','/',home),('get','/registrar',register_get),('post','/registrar',register_post),
         ('get','/entrar',login_get),('post','/entrar',login_post),('get','/conta',account),
         ('post','/sair',logout),('get','/clientes',clients),('get','/api/health',health)]:
