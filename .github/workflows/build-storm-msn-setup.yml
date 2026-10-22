@@ -1,0 +1,57 @@
+name: Storm MSN - Instalador Windows
+on:
+  push:
+    branches: [main]
+    paths:
+      - installer/**
+      - .github/workflows/build-storm-msn-setup.yml
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Instalar dependencias
+        run: python -m pip install --upgrade pyinstaller lief
+      - name: Verificar fonte
+        run: python -m py_compile installer/storm_msn_setup.py
+      - name: Testar PE ImportMe
+        shell: pwsh
+        run: |
+          @'
+          import lief
+          from pathlib import Path
+          from installer.storm_msn_setup import import_loaded
+          src = Path(r"C:\Windows\SysWOW64\notepad.exe")
+          pe = lief.PE.parse(str(src))
+          assert pe is not None and not import_loaded(pe)
+          im = pe.add_import("escargot.dll")
+          im.add_entry("ImportMe")
+          config = lief.PE.Builder.config_t()
+          config.imports = True
+          pe.write("fixture.exe", config)
+          patch = lief.PE.parse("fixture.exe")
+          assert import_loaded(patch)
+          print("PASS: Windows PE import ImportMe confirmado")
+          '@ | Set-Content -Encoding utf8 test_importme.py
+          python test_importme.py
+      - name: Compilar executavel de instalacao unico
+        run: pyinstaller --noconfirm --clean --onefile --windowed --uac-admin --name "StormMSN-Setup" installer/storm_msn_setup.py
+      - name: Conferir EXE
+        shell: pwsh
+        run: |
+          if (-not (Test-Path dist/StormMSN-Setup.exe)) { throw "EXE ausente" }
+          $f=Get-Item dist/StormMSN-Setup.exe
+          Write-Output "EXE gerado: $($f.Length) bytes"
+          Get-FileHash dist/StormMSN-Setup.exe -Algorithm SHA256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StormMSN-Setup-Windows
+          path: dist/StormMSN-Setup.exe
+          if-no-files-found: error
+          retention-days: 30
