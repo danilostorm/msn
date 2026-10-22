@@ -149,8 +149,11 @@ def _stats_from_json(json: Dict[str, Any]) -> Dict[str, Any]:
 		stats['messages_received'] = json['messages_received']
 	if 'users_active' in json:
 		hll = HyperLogLog(12)
-		hll.set_registers(bytearray(json['users_active']))
-		stats['users_active'] = hll
+		# The current HLL 3.x package removed set_registers. Do not crash
+		# on restart when an earlier hour snapshot includes HLL registers.
+		if hasattr(hll, 'set_registers'):
+			hll.set_registers(bytearray(json['users_active']))
+			stats['users_active'] = hll
 	return stats
 
 def _current_hour() -> int:

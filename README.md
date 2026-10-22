@@ -31,3 +31,6 @@ Código original de [Escargot Chat](https://gitlab.com/escargot-chat/server), so
 - A interface administrativa legada (sysboard na porta 4308) fica **somente dentro do contêiner**.
 
 **Atenção:** clientes MSN antigos não criptografam todas as mensagens e versões antigas podem transmitir credenciais com proteção fraca. Evite reutilizar senhas de serviços atuais. É necessário configurar DNS, certificados e patch próprio do cliente antes de liberar o serviço ao público.
+
+## Portal de contas
+A aplicação inclui páginas /, /registrar, /entrar, /conta, /clientes e /api/health. Cadastro público desligado por padrão. Ative apenas com HTTPS, rate limiting na borda e moderação.

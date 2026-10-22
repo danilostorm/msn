@@ -11,6 +11,7 @@ services:
       - "${MSN_LISTEN_ADDR:-127.0.0.1}:1864:1864"
       - "127.0.0.1:${MSN_HTTP_PORT:-18081}:8081"
     environment:
+      MSN_PUBLIC_SIGNUP: "0"
       MSN_ADMIN_PASSWORD: "${MSN_ADMIN_PASSWORD:?Configure no arquivo .env}"
       MSN_SITE_PASSWORD: "${MSN_SITE_PASSWORD:-}"
       MSN_TARGET_HOST: "${MSN_TARGET_HOST:-127.0.0.1}"
