@@ -17,7 +17,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Instalar dependencias
-        run: python -m pip install --upgrade pyinstaller lief py7zr
+        run: python -m pip install --upgrade pyinstaller lief
       - name: Verificar fonte
         run: python -m py_compile installer/storm_msn_setup.py
       - name: Testar PE ImportMe
@@ -81,9 +81,14 @@ jobs:
           $digest=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($digest -ne 'bc599c6640c5b9656434da810b2b7b25a7e7eaa8c4c2a7e38feb01ae485d1be8') { throw "Messenger Plus archive integrity mismatch" }
           $env:STORM_MSGPLUS_ARCHIVE_FIXTURE=$zip
+          $helper=Join-Path $env:RUNNER_TEMP '7zr.exe'
+          Invoke-WebRequest -Uri 'https://www.7-zip.org/a/7zr.exe' -OutFile $helper
+          $helperHash=(Get-FileHash $helper -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($helperHash -ne '256feca8e274e5da655e2a284fabafd9f554365eb164862089dacd4e8276d282') { throw "Official 7-Zip helper mismatch" }
+          $env:STORM_7ZR_FIXTURE=$helper
           python -m unittest discover -s installer -p 'test_setup.py' -v
       - name: Compilar executavel de instalacao unico
-        run: pyinstaller --noconfirm --clean --onefile --windowed --uac-admin --collect-all py7zr --name "StormMSN-Setup" installer/storm_msn_setup.py
+        run: pyinstaller --noconfirm --clean --onefile --windowed --uac-admin --name "StormMSN-Setup" installer/storm_msn_setup.py
       - name: Conferir EXE
         shell: pwsh
         run: |

@@ -68,7 +68,7 @@ Cadastro de testes habilitado via MSN_PUBLIC_SIGNUP=1. Protecoes: CSRF, honeypot
 - O WLM 2009 original continua como unico cliente principal.
 - A interface do instalador tem checkbox desmarcado "Instalar também Messenger Plus! 5.02 (opcional)".
 - O MsgPlus-5.02.712.7z enviado pelo usuario tem SHA-256 igual ao download oficial do Escargot: https://escargot.chat/download/msn/extras/
-- A versao do Escargot usa senha 7z escargot. A extracao e feita com py7zr sob demanda, sem embutir o instalador da Yuna no nosso EXE.
+- A versao do Escargot usa senha 7z escargot. A extracao e feita com 7zr.exe original, obtido do site 7-zip.org sob demanda, sem embutir o instalador da Yuna no nosso EXE.
 - SHA-256 7z: bc599c6640c5b9656434da810b2b7b25a7e7eaa8c4c2a7e38feb01ae485d1be8.
 - SHA-256 MsgPlus-5.02.712.exe extraido: 6bb92709e160a8410cd2fb465c40ddf6fd7b9d8891473fcc69760a2caa5b4918.
 - O instalador Messenger Plus! e um programa de terceiros que pode apresentar OFERTAS PATROCINADAS/ADWARE. O usuario deve revisar a tela e RECUSAR qualquer sponsor; o Storm MSN nao aprova ofertas automaticamente.

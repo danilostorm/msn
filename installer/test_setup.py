@@ -81,8 +81,10 @@ class MessengerPlusIntegrationTests(unittest.TestCase):
         )
         payload=Path(fixture).read_bytes()
         self.assertEqual(hashlib.sha256(payload).hexdigest(),PLUS_ARCHIVE_SHA256)
+        tool = os.environ.get("STORM_7ZR_FIXTURE")
+        self.assertTrue(tool,"Official 7-Zip helper must be supplied in Windows CI")
         with tempfile.TemporaryDirectory() as directory:
-            exe=extract_msgplus(payload,Path(directory))
+            exe=extract_msgplus(payload,Path(directory),Path(tool))
             self.assertEqual(exe.stat().st_size,PLUS_EXE_SIZE)
             self.assertEqual(hashlib.sha256(exe.read_bytes()).hexdigest(),PLUS_EXE_SHA256)
 
@@ -90,7 +92,7 @@ class MessengerPlusIntegrationTests(unittest.TestCase):
         from msgplus import extract_msgplus
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaises(ValueError):
-                extract_msgplus(b"not the real encrypted vendor archive",Path(directory))
+                extract_msgplus(b"not the real encrypted vendor archive",Path(directory),Path("unused.exe"))
 
 
 if __name__=="__main__":
