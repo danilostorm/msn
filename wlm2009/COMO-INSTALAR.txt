@@ -1,0 +1,30 @@
+STORM MSN - Windows Live Messenger 2009 original PT-BR (instalacao automatizada)
+
+1. Extraia o ZIP completo em uma pasta no seu Windows.
+2. Clique em "Instalar-StormMSN.cmd".
+3. Aceite o UAC de Administrador, e quando solicitado confirme instalacao.
+4. O assistente baixa o WLM 2009 PRE-PATCHED do site do Escargot
+   e valida o SHA256; nao usa o antigo cliente Python/Tkinter.
+5. No instalador escolha Messenger e Contacts. Se aparecer RUN_AFTER_INSTALL.exe,\n   confirme e clique PATCH ALL para ativar os imports do Switcher. Depois o assistente
+   configura msnmsgr.exe e wlcomm.exe para o Storm MSN (faz backup de INI).
+6. Cadastre sua conta em https://msn.hoststorm.com.br/registrar
+   com uma senha EXCLUSIVA de 12 a 15 caracteres.
+7. Abra o Windows Live Messenger e tente conectar com essa conta.
+
+O cadastro esta em beta e o login grafico do cliente WLM 2009 ainda
+precisa ser confirmado por teste interativo em Windows.
+No Windows 11 24H2/25H2, se aparecer erro 84cc0020, consulte o patch
+de contatos do Escargot na pagina de downloads oficial.
+
+Usa publicamente a URL do Escargot apenas para baixar seu instalador;
+toda configuracao MSN aponta ao Storm MSN:
+  MSN server TCP: im.hoststorm.com.br 1863,1864
+  SSO/config/contacts HTTPS: msn.hoststorm.com.br
+NAO redireciona login.live.com por HOSTS nem instala root CAs.
+
+Nao redistribuimos os arquivos proprietarios Microsoft. Se o usuario
+ja possui um WLM 2009 PRE-PATCHED, ele apenas configura os INIs.
+O WLM UNPATCHED sozinho nao e suficiente para usar o Switcher:
+se a versao instalada for unpatched, use a edicao "Download Patched"
+oficial, instalada atraves deste assistente.
+\nSe ja instalou WLM UNPATCHED, desinstale Messenger/Contacts antes de executar este assistente para usar a edicao PRE-PATCHED oficial.\n
