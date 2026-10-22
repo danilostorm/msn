@@ -125,7 +125,7 @@ async def logout(req):
     r=web.HTTPFound("/");r.del_cookie(SESSION);return r
 async def clients(req):
     return page("""<section class="card">
-<h2>Windows Live Messenger 2009 original — em português</h2>
+<h2>Windows Live Messenger 2009 original — em português</h2><p class="note"><strong>Nova versão 1.0.1:</strong> Corrigido o erro de tamanho do wlcomm.exe. Caso tenha recebido esse erro, feche o MSN e instale novamente usando o EXE atualizado. Sua conta permanece a mesma.</p>
 <p>O Storm MSN usa o <strong>Windows Live Messenger 2009 da Microsoft (14.0.8117.0416)</strong>, com o Switcher configurado para nossa rede. É o Messenger clássico, com sua interface e lista de contatos originais. <strong>Não é o cliente experimental em Python.</strong></p>
 <div class="grid">
   <div class="feature"><b>1. Instale o WLM 2009</b><p>Um EXE do Storm MSN baixa o cliente WLM 2009 PT-BR, configura os dois executáveis e faz backup automático. Sem usar PATCH ALL manualmente.</p><p><a class="btn" href="/downloads/StormMSN-Setup.exe">Baixar Storm MSN para Windows (.exe)</a></p></div>
