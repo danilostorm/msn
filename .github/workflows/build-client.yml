@@ -1,10 +1,5 @@
-name: Build Storm MSN Client
+name: DEPRECATED experimental Python client (not WLM 2009)
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'client/**'
-      - '.github/workflows/build-client.yml'
   workflow_dispatch:
 jobs:
   build:

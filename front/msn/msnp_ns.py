@@ -113,7 +113,7 @@ class MSNPCtrlNS(MSNPCtrl):
 	def _m_cvr(self, trid: str, *args: str) -> None:
 		v = args[5]
 		self.client = Client('msn', v, self.client.via)
-		self.send_reply('CVR', trid, v, v, v, 'https://escargot.log1p.xyz', 'https://escargot.log1p.xyz')
+		self.send_reply('CVR', trid, v, v, v, 'https://' + settings.LOGIN_HOST, 'https://' + settings.LOGIN_HOST)
 	
 	def _m_inf(self, trid: str) -> None:
 		dialect = self.dialect

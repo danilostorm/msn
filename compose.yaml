@@ -9,6 +9,9 @@ services:
     ports:
       - "${MSN_LISTEN_ADDR:-127.0.0.1}:1863:1863"
       - "${MSN_LISTEN_ADDR:-127.0.0.1}:1864:1864"
+      # Private Tailscale listener for Oracle public edge proxy
+      - "${MSN_TAILSCALE_ADDR:-100.99.136.79}:1863:1863"
+      - "${MSN_TAILSCALE_ADDR:-100.99.136.79}:1864:1864"
       - "127.0.0.1:${MSN_HTTP_PORT:-18081}:8081"
     environment:
       MSN_PUBLIC_SIGNUP: "0"

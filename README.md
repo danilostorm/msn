@@ -44,3 +44,18 @@ A aplicação inclui páginas /, /registrar, /entrar, /conta, /clientes e /api/h
 - E2E testado: python -m tests.e2e_client executado dentro do contêiner, com MSN_E2E_HOST=msn.hoststorm.com.br e bibliotecas websockets.
 - Cadastro público DESLIGADO até verificação de e-mail/controle de abuso, termos e testes com cliente Windows; não prometer disponibilidade geral.
 - Backup SQLite, métricas persistentes, limitação por conta e patch do cliente Microsoft original permanecem pendências.
+
+## WLM 2009 (cliente Microsoft + patch Escargot)
+**Este e o cliente principal do Storm MSN.** O desktop Python/Tkinter anterior
+no diretorio client/ e um laboratorio legado e NAO sera divulgado ao publico.
+O cliente Microsoft nao e redistribuido por este repositorio.
+
+- Download WLM 2009 PT-BR: https://escargot.chat/download/msn/lang/pt-br/ (WLM 2009 > Download Patched)
+- Configurador Switcher: https://msn.hoststorm.com.br/downloads/StormMSN-WLM2009-Configuracao.zip
+- Servico TCP: im.hoststorm.com.br portas 1863 e 1864 (Oracle/Tailscale/AEROCOOL)
+- Configuracoes, autenticao e contatos HTTPS: https://msn.hoststorm.com.br
+- Arquivos no Windows: msnmsgr.exe-escargot.ini E wlcomm.exe-escargot.ini
+- Nao modificar HOSTS ou confiar em certificados raiz autoassinados.
+- A negociacao MSNP15 por rede publica nao prova login SSO, sincronizacao de
+  contatos nem compatibilidade do WLM 2009 em Windows real; testes pendentes.
+- Cadastro publico permanece desligado.

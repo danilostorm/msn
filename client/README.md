@@ -1,3 +1,5 @@
+AVISO: CLIENTE LABORATORIAL DESCONTINUADO. O CLIENTE PRINCIPAL AGORA E O WINDOWS LIVE MESSENGER 2009 PATCHED.
+
 # Storm MSN Desktop
 
 Cliente independente em Python + Tkinter (sem binários proprietários da Microsoft).

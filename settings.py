@@ -2,8 +2,8 @@ DB = 'sqlite:///escargot.sqlite'
 STATS_DB = 'sqlite:///stats.sqlite'
 CERT_DIR = 'path/to/cert'
 CERT_ROOT = 'CERT_ROOT'
-TARGET_HOST = 'm1.escargot.log1p.xyz'
-LOGIN_HOST = 'm1.escargot.log1p.xyz'
+TARGET_HOST = 'im.hoststorm.com.br'
+LOGIN_HOST = 'msn.hoststorm.com.br'
 STORAGE_HOST = LOGIN_HOST
 # While not necessary for debugging, it is recommended you change the password variables in production for security reasons.
 SYSBOARD_PASS = 'root'

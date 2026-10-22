@@ -490,7 +490,7 @@ async def handle_textad(req: web.Request) -> web.Response:
 	return web.HTTPOk(content_type = 'text/xml', text = textad)
 
 async def handle_portal(req: web.Request) -> web.Response:
-	return web.HTTPFound('https://escargot.log1p.xyz/etc/today-msn')
+	return web.HTTPFound('https://msn.hoststorm.com.br/')
 
 async def handle_msn_redirect(req: web.Request) -> web.Response:
 	i = req.match_info['i']
@@ -503,7 +503,7 @@ async def handle_msn_redirect(req: web.Request) -> web.Response:
 	return web.HTTPFound('http://g.msn.com{}'.format(req.path_qs))
 
 async def handle_tabs(req: web.Request) -> web.Response:
-	return web.HTTPFound('http://escargot.log1p.xyz/etc/tabs')
+	return web.HTTPFound('https://msn.hoststorm.com.br/clientes')
 	
 	#with open(TMPL_DIR + '/svcs_tabs.xml') as fh:
 	#	tabs_resp = fh.read()
@@ -571,9 +571,8 @@ async def handle_nexus(req: web.Request) -> web.Response:
 
 async def handle_login(req: web.Request) -> web.Response:
 	tmp = _extract_pp_credentials(req.headers.get('Authorization') or '')
-	if tmp is None:
-		token = None
-	else:
+	token_tpl = None
+	if tmp is not None:
 		email, pwd = tmp
 		token_tpl = _login(req, email, pwd)
 	if token_tpl is None:

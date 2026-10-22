@@ -76,13 +76,13 @@
 	</TabConfig>
 	<AbchCfg>
 		<abchconfig>
-			<url>https://m1.escargot.log1p.xyz/abservice/abservice.asmx</url>
+			<url>https://msn.hoststorm.com.br/abservice/abservice.asmx</url>
 		</abchconfig>
 	</AbchCfg>
 	<LocalizedConfig Market="en-US">
 		<AdMainConfig>
 			<TextAdRefresh>1</TextAdRefresh>
-			<TextAdServer>https://m1.escargot.log1p.xyz/etc/text-ad-service</TextAdServer>
+			<TextAdServer>https://msn.hoststorm.com.br/etc/text-ad-service</TextAdServer>
 		</AdMainConfig>
 		<AppDirConfig>
 			<AppDirPageURL>https://msn-app-directory.escargot.log1p.xyz/AppDirectory/Directory.aspx?L=en-us</AppDirPageURL>
@@ -134,22 +134,22 @@
 		</MSNSearch>
 		<MsnTodayConfig>
 			<MsnTodaySiteID>6528</MsnTodaySiteID>
-			<MsnTodayURL>https://escargot.log1p.xyz/etc/escargot-today</MsnTodayURL>
+			<MsnTodayURL>https://msn.hoststorm.com.br/etc/escargot-today</MsnTodayURL>
 			<Flags>2</Flags>
 		</MsnTodayConfig>
 		<OneCare Enabled="0"/>
 		<PSTNOut Hidden="1"/>
 		<ReportAbuse>
 			<ReportAbuseSID/>
-			<ReportAbuseURL>https://escargot.log1p.xyz/report-abuse</ReportAbuseURL>
+			<ReportAbuseURL>https://msn.hoststorm.com.br/report-abuse</ReportAbuseURL>
 		</ReportAbuse>
 		<RL>
-			<ViewProfileURL>https://escargot.pokeacer.xyz/dir/</ViewProfileURL>
+			<ViewProfileURL>https://msn.hoststorm.com.br/conta</ViewProfileURL>
 		</RL>
 		<SDrive Enabled="true"/>
 		<TermsOfUse>
 			<TermsOfUseSID>956</TermsOfUseSID>
-			<TermsOfUseURL>https://escargot.log1p.xyz/etc/tos</TermsOfUseURL>
+			<TermsOfUseURL>https://msn.hoststorm.com.br/etc/tos</TermsOfUseURL>
 		</TermsOfUse>
 		<VoiceClip Hidden="0"/>
 		<VoiceVideo>

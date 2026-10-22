@@ -1,0 +1,30 @@
+STORM MSN -- WINDOWS LIVE MESSENGER 2009 ORIGINAL (PT-BR)
+22 de outubro de 2026 -- configuracao experimental, nao validada no Windows
+
+1) Baixe a edicao pre-patcheada do Windows Live Messenger 2009 PT-BR
+   diretamente do Escargot: https://escargot.chat/download/msn/lang/pt-br/
+   Escolha WLM 2009 > Download Patched.
+   Nosso ZIP NAO contem executavel proprietario da Microsoft.
+
+2) Instale Messenger e Windows Live Contacts (wlcomm.exe).
+3) Feche completamente o MSN, inclusive na bandeja do sistema.
+4) Execute no PowerShell COMO ADMINISTRADOR, na pasta do pacote:
+   powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\Configurar-StormMSN-WLM2009.ps1"
+   O script altera apenas os arquivos de configuracao INI do Switcher
+   ja existentes e cria backups. NAO altera o HOSTS, root CA ou EXEs.
+
+5) Destinos:
+   server = im.hoststorm.com.br       (TCP 1863/1864 Oracle -> AEROCOOL)
+   configserver = msn.hoststorm.com.br (HTTPS)
+   passporturls = 1
+   type = msn
+
+6) Entre usando uma conta do SEU Storm MSN, nao do Escargot publico.
+
+STATUS: MSNP15 negocia corretamente. Login SSO completo, contatos no
+wlcomm.exe e interface real do WLM 2009 ainda precisam de teste Windows.
+Portanto a rede ainda nao esta aberta para cadastros publicos.
+
+Seguranca: clientes originais transmitem mensagens sem criptografia ponta
+a ponta. Nunca reutilize senhas de outros servicos. Nao redirecione
+dominios da Microsoft no arquivo hosts, nem instale root CAs desconhecidos.
