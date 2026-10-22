@@ -376,7 +376,7 @@ class SetupUI:
                 wraplength=600, justify="center",
                 bg="#e5f5ff", fg="#66768b",
             ).pack(pady=(1, 5))
-        self.include_msgplus = tk.BooleanVar(value=False)
+        self.include_msgplus = tk.BooleanVar(value="--with-plus" in sys.argv)
         tk.Checkbutton(
             self.root,
             text="Instalar também Messenger Plus! 5.02 (opcional)",

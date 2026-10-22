@@ -85,3 +85,13 @@ Cadastro de testes habilitado via MSN_PUBLIC_SIGNUP=1. Protecoes: CSRF, honeypot
 - O novo arquivo MsgPlusSetup.zip enviado pelo usuario contem um EXE de 7.980.544 bytes e SHA256 c83bdc6d48290b2ff9c54e7cb84a82404d7ee46bf1d385bfaf5804f3b8d6b55a. Seu executavel possui referencia a 'Zugo' no caminho de build original, nao identico a versao adaptada pelo Escargot. Por essa razao e para preservar o patch de som, esta variante nao foi publicada nem executada automaticamente.
 - O Plus! adaptado pelo Escargot traz patches para o servidor de sons deles, NAO para o Storm MSN. Os sons remotos ainda precisam de uma integracao especifica com nosso backend. Os recursos locais podem ser testados separadamente.
 - Winks do WLM 2009 dependem de Flash ActiveX. NAO instale Flash obsoleto globalmente no Windows por padrao. O tutorial do Escargot recomenda versoes antigas, mas sao riscos de seguranca. Ruffle opera como player SWF moderno mas nao oferece um ActiveX drop-in para o WLM. Isolamento ou adaptacao independente seriam o caminho futuro.
+
+## Storm MSN 1.0.5 — Messenger Plus do usuario e investigacao Flash
+- Instalador reconhece MsgPlusSetup.zip ao lado do StormMSN-Setup.exe e usa o executavel enviado pelo usuario, verificando SHA256 de ambos.
+- ZIP usuario SHA256 5355326b50e7b22de8b3fa3493f1c186b800e2e357d679e2cdf52c2bff0bfb70.
+- EXE usuario SHA256 c83bdc6d48290b2ff9c54e7cb84a82404d7ee46bf1d385bfaf5804f3b8d6b55a.
+- Execucao automatica no fluxo do instalador quando opcao Plus selecionada ou via --with-plus, mantendo as telas de consentimento originais. Sem alterar os servidores MSN.
+- Sem MsgPlusSetup.zip, usa o arquivo sem senha baseado na distribuicao Escargot.
+- Analise estatica do WLM 2009: executavel msnmsgrexe extraido de MsgrCore.cab inclui referencias MinFlashPlayer, DDPFlashNotInstalled, DDPFlashPlayer, Macromedia e http://www.macromedia.com/go/getflashplayer/.
+- Os winks WLM 2009 sao pacotes .mct (CABs) contendo .swf e assets. Exemplos: bola.mct, bow.mct, dancing_pig.mct.
+- Escargot documenta Flash ActiveX 7.0-10.3 e isolamento COM como alternativa; nao foi encontrado Flash ActiveX embutido. Flash antigo nao incluido no Storm MSN.

@@ -100,10 +100,12 @@ jobs:
       - name: Publicar instalador direto no GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: wlm2009-setup-v1.0.4
-          name: Storm MSN - Windows Live Messenger 2009 - Instalador v1.0.4
+          tag_name: wlm2009-setup-v1.0.5
+          name: Storm MSN - Windows Live Messenger 2009 - Instalador v1.0.5
           body: |
-            Messenger Plus! 5.02 agora usa ZIP sem senha, mantendo a versao adaptada pelo Escargot.
+            Messenger Plus! 5.02 instalado automaticamente quando selecionado.
+            Aceita o MsgPlusSetup.zip original que o usuario forneceu ao lado do instalador.
+            Usa a variante validada do Escargot como fallback, sem exigir senha.
             A instalacao e opcional e desmarcada por padrao.
             SHA-256 do ZIP e do executavel sao validados; nao se aceita ofertas patrocinadas automaticamente.
             Windows 11 24H2 e 25H2: opcao para abrir a correcao oficial Escargot para o erro de lista de contatos.

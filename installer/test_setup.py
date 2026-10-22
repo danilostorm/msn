@@ -86,6 +86,16 @@ class MessengerPlusIntegrationTests(unittest.TestCase):
             self.assertEqual(exe.stat().st_size,PLUS_EXE_SIZE)
             self.assertEqual(hashlib.sha256(exe.read_bytes()).hexdigest(),PLUS_EXE_SHA256)
 
+    def test_exact_user_repacked_version(self):
+        fixture = os.environ.get("STORM_USER_MSGPLUS_ARCHIVE_FIXTURE")
+        if not fixture:
+            self.skipTest("User-repacked Messenger Plus ZIP is locally tested")
+        from msgplus import extract_user_msgplus, USER_PLUS_EXE_SHA256
+        with tempfile.TemporaryDirectory() as d:
+            exe=extract_user_msgplus(Path(fixture).read_bytes(),Path(d))
+            self.assertEqual(exe.name,"MsgPlusSetup.exe")
+            self.assertEqual(hashlib.sha256(exe.read_bytes()).hexdigest(),USER_PLUS_EXE_SHA256)
+
     def test_corrupt_vendor_archive_rejected_without_launching(self):
         from msgplus import extract_msgplus
         with tempfile.TemporaryDirectory() as directory:
