@@ -10,3 +10,5 @@ funcli
 git+https://gitlab.com/valtron/sqlaltery.git@v0.1.0
 pytz
 cryptography
+
+python-dateutil==2.9.0.post0

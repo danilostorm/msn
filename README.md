@@ -22,3 +22,12 @@ Banco SQLite persistido em `../data` (fora da pasta do projeto). Não versionar 
 
 ## Créditos e licença
 Código original de [Escargot Chat](https://gitlab.com/escargot-chat/server), sob [Creative Commons Attribution-NonCommercial 4.0 International](LICENSE). Todos os avisos de autoria e licenciamento originais são preservados. Alterações deste repositório mantêm as restrições da licença original.
+
+## Verificação rápida no servidor
+- Status: `docker compose ps`
+- Logs: `docker compose logs --tail=100 msn`
+- Criar usuário (interativo): `docker compose exec msn python -m script.user usuario@exemplo.com usuario`
+- Testar configuração HTTP: `curl -I http://127.0.0.1:18081/etc/MsgrConfig` (respostas variam por versão)
+- A interface administrativa legada (sysboard na porta 4308) fica **somente dentro do contêiner**.
+
+**Atenção:** clientes MSN antigos não criptografam todas as mensagens e versões antigas podem transmitir credenciais com proteção fraca. Evite reutilizar senhas de serviços atuais. É necessário configurar DNS, certificados e patch próprio do cliente antes de liberar o serviço ao público.

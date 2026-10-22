@@ -854,7 +854,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 					from_user_id = arbitrary_decode(key1_val)
 				
 				self.backend.user_service.save_oim(
-					bs, contact_uuid, gen_uuid(), ip, md.text or '', False if md.front_cache['ymsg'].get(b'97') is b'0' else True,
+					bs, contact_uuid, gen_uuid(), ip, md.text or '', False if md.front_cache['ymsg'].get(b'97') == b'0' else True,
 					from_user_id = from_user_id,
 				)
 		except error.ContactNotOnList:

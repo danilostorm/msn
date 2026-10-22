@@ -5,6 +5,7 @@ services:
     build: .
     restart: unless-stopped
     init: true
+    network_mode: bridge
     ports:
       - "${MSN_LISTEN_ADDR:-127.0.0.1}:1863:1863"
       - "${MSN_LISTEN_ADDR:-127.0.0.1}:1864:1864"
