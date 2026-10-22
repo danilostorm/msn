@@ -75,3 +75,13 @@ Cadastro de testes habilitado via MSN_PUBLIC_SIGNUP=1. Protecoes: CSRF, honeypot
 - Compativel com WLM 2009 segundo o Escargot, porem sons online podem depender da rede propria do Escargot e alguns recursos podem nao funcionar no Storm MSN.
 - Configuracao do servidor Storm MSN nos dois INIs e restabelecida apos a instalacao do complemento.
 - O Plus nao foi validado manualmente em uma instalacao final do WLM 2009 no Windows; o teste CI cobre integridade e extracao do pacote original.
+
+
+## Storm MSN v1.0.4: Messenger Plus sem senha / Flash (22-10-2026)
+- Plus! 5.02.712 ainda e um complemento opcional, nao o cliente MSN principal.
+- Pacote ZIP sem senha: https://msn.hoststorm.com.br/downloads/StormMSN-MsgPlus-5.02.712.zip
+- ZIP SHA256 e5d897a04a8c51156b6226608d31fbf726d7434135a46ade768ad2955f0e7038.
+- Conteudo: executavel original ajustado pelo Escargot (hash 6bb92709e160a8410cd2fb465c40ddf6fd7b9d8891473fcc69760a2caa5b4918) reempacotado, sem criptografia e sem senha.
+- O novo arquivo MsgPlusSetup.zip enviado pelo usuario contem um EXE de 7.980.544 bytes e SHA256 c83bdc6d48290b2ff9c54e7cb84a82404d7ee46bf1d385bfaf5804f3b8d6b55a. Seu executavel possui referencia a 'Zugo' no caminho de build original, nao identico a versao adaptada pelo Escargot. Por essa razao e para preservar o patch de som, esta variante nao foi publicada nem executada automaticamente.
+- O Plus! adaptado pelo Escargot traz patches para o servidor de sons deles, NAO para o Storm MSN. Os sons remotos ainda precisam de uma integracao especifica com nosso backend. Os recursos locais podem ser testados separadamente.
+- Winks do WLM 2009 dependem de Flash ActiveX. NAO instale Flash obsoleto globalmente no Windows por padrao. O tutorial do Escargot recomenda versoes antigas, mas sao riscos de seguranca. Ruffle opera como player SWF moderno mas nao oferece um ActiveX drop-in para o WLM. Isolamento ou adaptacao independente seriam o caminho futuro.

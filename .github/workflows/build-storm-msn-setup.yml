@@ -73,19 +73,14 @@ jobs:
           if ($digest -ne '125213062071f17aed267cde94ecfb3193ca21cacec2c82f257c0cfde1f17ae8') { throw "Patcher 24H2 integrity mismatch" }
           $env:STORM_WIN11_FIX_FIXTURE=$zip
           python -m unittest discover -s installer -p 'test_setup.py' -v
-      - name: Testar opcao Messenger Plus! 5.02 com pacote oficial criptografado
+      - name: Testar Messenger Plus! sem senha (Storm MSN)
         shell: pwsh
         run: |
-          $zip=Join-Path $env:RUNNER_TEMP 'MsgPlus-5.02.712.7z'
-          Invoke-WebRequest -Uri 'https://storage.levelleap.com/nina/clients/msnp/msgplus/patched/MsgPlus-5.02.712.7z' -OutFile $zip
+          $zip=Join-Path $env:RUNNER_TEMP 'StormMSN-MsgPlus-5.02.712.zip'
+          Invoke-WebRequest -Uri 'https://msn.hoststorm.com.br/downloads/StormMSN-MsgPlus-5.02.712.zip' -OutFile $zip
           $digest=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($digest -ne 'bc599c6640c5b9656434da810b2b7b25a7e7eaa8c4c2a7e38feb01ae485d1be8') { throw "Messenger Plus archive integrity mismatch" }
+          if ($digest -ne 'e5d897a04a8c51156b6226608d31fbf726d7434135a46ade768ad2955f0e7038') { throw 'Plus ZIP checksum mismatch' }
           $env:STORM_MSGPLUS_ARCHIVE_FIXTURE=$zip
-          $helper=Join-Path $env:RUNNER_TEMP '7zr.exe'
-          Invoke-WebRequest -Uri 'https://www.7-zip.org/a/7zr.exe' -OutFile $helper
-          $helperHash=(Get-FileHash $helper -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($helperHash -ne '256feca8e274e5da655e2a284fabafd9f554365eb164862089dacd4e8276d282') { throw "Official 7-Zip helper mismatch" }
-          $env:STORM_7ZR_FIXTURE=$helper
           python -m unittest discover -s installer -p 'test_setup.py' -v
       - name: Compilar executavel de instalacao unico
         run: pyinstaller --noconfirm --clean --onefile --windowed --uac-admin --name "StormMSN-Setup" installer/storm_msn_setup.py
@@ -105,12 +100,12 @@ jobs:
       - name: Publicar instalador direto no GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: wlm2009-setup-v1.0.3
-          name: Storm MSN - Windows Live Messenger 2009 - Instalador v1.0.3
+          tag_name: wlm2009-setup-v1.0.4
+          name: Storm MSN - Windows Live Messenger 2009 - Instalador v1.0.4
           body: |
-            Messenger Plus! 5.02 build 712 agora e opcional (desmarcado por padrao).
-            O programa obtem o arquivo 7z oficial do Escargot somente mediante autorizacao.
-            Confere SHA-256 da fonte e do EXE; abre instalador original sem aceitar ofertas patrocinadas automaticamente.
+            Messenger Plus! 5.02 agora usa ZIP sem senha, mantendo a versao adaptada pelo Escargot.
+            A instalacao e opcional e desmarcada por padrao.
+            SHA-256 do ZIP e do executavel sao validados; nao se aceita ofertas patrocinadas automaticamente.
             Windows 11 24H2 e 25H2: opcao para abrir a correcao oficial Escargot para o erro de lista de contatos.
             Correcao executada somente apos escolha explicita, usando ZIP verificado por SHA-256 da NINA.
             Mantem WLM 2009 original e enderecos privados do Storm MSN. Recomenda reinicio.
