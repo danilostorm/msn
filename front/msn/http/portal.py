@@ -125,21 +125,22 @@ async def logout(req):
     r=web.HTTPFound("/");r.del_cookie(SESSION);return r
 async def clients(req):
     return page("""<section class="card">
-<h2>Windows Live Messenger 2009 original — em português</h2><p class="note"><strong>Storm MSN v1.0.4:</strong> instalação do Messenger Plus! 5.02 opcional e correção para a lista de contatos no Windows 11 24H2/25H2. Se recebeu "Sua lista de contatos não está disponível", feche completamente o Messenger, instale esta versão, marque a opção de compatibilidade Win11 24H2/25H2 e confirme a abertura da ferramenta do Escargot. Depois, reinicie o computador. Sua conta permanece a mesma.</p>
+<h2>Windows Live Messenger 2009 original — em português</h2><p class="note"><strong>Storm MSN v1.0.5:</strong> instalação do Messenger Plus! 5.02 opcional e correção para a lista de contatos no Windows 11 24H2/25H2. Se recebeu "Sua lista de contatos não está disponível", feche completamente o Messenger, instale esta versão, marque a opção de compatibilidade Win11 24H2/25H2 e confirme a abertura da ferramenta do Escargot. Depois, reinicie o computador. Sua conta permanece a mesma.</p>
 <p>O Storm MSN usa o <strong>Windows Live Messenger 2009 da Microsoft (14.0.8117.0416)</strong>, com o Switcher configurado para nossa rede. É o Messenger clássico, com sua interface e lista de contatos originais. <strong>Não é o cliente experimental em Python.</strong></p>
 <div class="grid">
-  <div class="feature"><b>1. Instale o WLM 2009</b><p>Um EXE do Storm MSN baixa o cliente WLM 2009 PT-BR, configura os dois executáveis e faz backup automático. Sem usar PATCH ALL manualmente.</p><p><a class="btn" href="/downloads/StormMSN-Setup-v1.0.3.exe">Baixar Storm MSN v1.0.4 (.exe)</a></p></div>
+  <div class="feature"><b>1. Instale o WLM 2009</b><p>Um EXE do Storm MSN baixa o cliente WLM 2009 PT-BR, configura os dois executáveis e faz backup automático. Sem usar PATCH ALL manualmente.</p><p><a class="btn" href="/downloads/StormMSN-Setup-v1.0.5.exe">Baixar Storm MSN v1.0.5 (.exe)</a></p></div>
   <div class="feature"><b>2. Configure o Storm MSN</b><p>Se preferir o método anterior, o pacote com os arquivos INI e o assistente PowerShell continua disponível.</p><p><a class="btn" href="/downloads/StormMSN-WLM2009-Configuracao.zip">Configuração Storm MSN</a></p></div>
   <div class="feature"><b>3. Entre na sua conta</b><p>Após instalar e configurar o cliente, entre com uma conta criada especificamente para o Storm MSN.</p><p><a class="btn alt" href="/registrar">Cadastro de usuário</a></p></div>
 </div>
 <h2 style="margin-top:38px">Messenger Plus! 5.02 (opcional)</h2>
-<p>O instalador oferece o <strong>Messenger Plus! 5.02 build 712</strong> como complemento opcional. Ele vem <strong>desmarcado por padrão</strong>. O ZIP do Plus agora está <strong>sem senha</strong>, contendo a versão ajustada pelo Escargot. O Storm MSN verifica a integridade antes de abrir a instalação do complemento.</p>
-<p><a class="btn alt" href="/downloads/StormMSN-MsgPlus-5.02.712.zip">Messenger Plus! 5.02 sem senha (ZIP)</a></p>
+<p>O instalador oferece o <strong>Messenger Plus! 5.02 build 712</strong> como complemento opcional e desmarcado por padrão. Se encontrar o arquivo <strong>MsgPlusSetup.zip</strong> fornecido pelo usuário na <strong>mesma pasta do EXE do Storm MSN</strong>, utilizará automaticamente essa versão após confirmar a instalação. Caso contrário, usará a versão 5.02 da distribuição Escargot, sem senha. Os dois pacotes são conferidos por SHA-256.</p>
+<p><a class="btn alt" href="/downloads/StormMSN-MsgPlus-5.02.712.zip">Messenger Plus! 5.02 Escargot (ZIP sem senha)</a></p>
+<p class="note">Para utilizar especificamente sua cópia <strong>MsgPlusSetup.zip</strong>, coloque-a ao lado do instalador StormMSN-Setup.exe e marque a opção Messenger Plus! — não é necessário extrair o arquivo. Para instalação integrada pré-selecionada, também há suporte ao parâmetro <strong>--with-plus</strong>. O instalador original do Plus continua exigindo suas confirmações.</p>
 <p class="note"><strong>Atenção:</strong> o Messenger Plus! é um aplicativo antigo de terceiros e seu instalador pode oferecer software patrocinado (adware). Leia as etapas da instalação e <strong>recuse qualquer programa adicional ou oferta patrocinada</strong>. Os patches de sons online desta versão foram feitos para o Escargot; o Storm MSN ainda não hospeda esse serviço próprio.</p>
 <h2 style="margin-top:38px">Winks e Adobe Flash</h2>
 <p>Os winks originais do WLM 2009 exigem o <strong>Adobe Flash ActiveX</strong>. O Flash está descontinuado. <strong>Não instale versões antigas do Flash globalmente no Windows:</strong> isso cria riscos de segurança. O Storm MSN não instala Flash e mantém os winks como recurso experimental até termos uma forma de reprodução isolada e segura. O projeto Ruffle pode executar alguns arquivos SWF modernos e antigos, mas não substitui diretamente o componente ActiveX do Messenger.</p>
 <h2 style="margin-top:38px">Windows 11 24H2/25H2: erro na lista de contatos</h2>
-<p>Se ao tentar entrar aparecer "Sua lista de contatos não está disponível", é uma incompatibilidade conhecida do banco de contatos do Windows 11 mais novo com o WLM 2009. O <strong>StormMSN-Setup v1.0.4</strong> detecta esses Windows e permite executar, com sua autorização, a correção oficial Escargot. O programa de terceiros é iniciado em sua janela, pode modificar componentes do Windows e é recomendado reiniciar depois.</p>
+<p>Se ao tentar entrar aparecer "Sua lista de contatos não está disponível", é uma incompatibilidade conhecida do banco de contatos do Windows 11 mais novo com o WLM 2009. O <strong>StormMSN-Setup v1.0.5</strong> detecta esses Windows e permite executar, com sua autorização, a correção oficial Escargot. O programa de terceiros é iniciado em sua janela, pode modificar componentes do Windows e é recomendado reiniciar depois.</p>
 <p><a class="btn alt" href="https://static.nina.chat/distro/EscargotWin24H2.zip" rel="noopener noreferrer">Baixar correção original NINA (ZIP)</a></p>
 <h2 style="margin-top:38px">Endereços do serviço</h2>
 <p><strong>Servidor de mensagens:</strong> im.hoststorm.com.br (TCP 1863 e 1864, via Oracle e AEROCOOL).<br>
@@ -162,7 +163,7 @@ async def download_wlm_config(req):
 async def download_storm_setup(req):
     from pathlib import Path
     filename=req.path.rsplit("/",1)[-1]
-    if filename not in ("StormMSN-Setup.exe","StormMSN-Setup-v1.0.2.exe","StormMSN-Setup-v1.0.3.exe","StormMSN-Setup-v1.0.4.exe"):
+    if filename not in ("StormMSN-Setup.exe","StormMSN-Setup-v1.0.2.exe","StormMSN-Setup-v1.0.3.exe","StormMSN-Setup-v1.0.4.exe","StormMSN-Setup-v1.0.5.exe"):
         raise web.HTTPNotFound()
     executable=Path("/data/downloads") / filename
     if not executable.is_file():
@@ -246,6 +247,7 @@ def register(app,backend):
     app.router.add_get("/downloads/StormMSN-Setup-v1.0.2.exe",download_storm_setup)
     app.router.add_get("/downloads/StormMSN-Setup-v1.0.3.exe",download_storm_setup)
     app.router.add_get("/downloads/StormMSN-Setup-v1.0.4.exe",download_storm_setup)
+    app.router.add_get("/downloads/StormMSN-Setup-v1.0.5.exe",download_storm_setup)
     app.router.add_get("/downloads/StormMSN-MsgPlus-5.02.712.zip",download_msgplus)
     app.router.add_get("/downloads/StormMSN-WLM2009-Configuracao.zip",download_wlm_config)
     app.router.add_get("/downloads/StormMSN-WLM2009-Instalador.zip",download_wlm_installer)
