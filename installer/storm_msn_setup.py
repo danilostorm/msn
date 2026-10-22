@@ -23,7 +23,11 @@ from urllib.request import Request, urlopen
 import zipfile
 import tkinter as tk
 from tkinter import scrolledtext, messagebox
-from msgplus import install_msgplus
+# Support both direct PyInstaller entry point and package-mode CI imports.
+try:
+    from .msgplus import install_msgplus
+except ImportError:
+    from msgplus import install_msgplus
 
 APP_NAME = "Storm MSN"
 UPSTREAM_ZIP_URL = (
