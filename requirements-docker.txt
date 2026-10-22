@@ -1,0 +1,12 @@
+# Dependencias de execucao para a base historica Escargot (sem ferramentas de lint/dev)
+lxml==5.4.0
+aiohttp==3.8.6
+SQLAlchemy==1.3.24
+jinja2==3.0.3
+MarkupSafe==2.1.5
+Pillow==10.4.0
+HLL
+funcli
+git+https://gitlab.com/valtron/sqlaltery.git@v0.1.0
+pytz
+cryptography

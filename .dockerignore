@@ -1,0 +1,9 @@
+.git
+.gitignore
+.env
+*.sqlite
+data
+__pycache__
+.mypy_cache
+.pytest_cache
+settings_local.py
