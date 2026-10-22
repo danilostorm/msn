@@ -125,15 +125,18 @@ async def logout(req):
     r=web.HTTPFound("/");r.del_cookie(SESSION);return r
 async def clients(req):
     return page("""<section class="card">
-<h2>Windows Live Messenger 2009 original — em português</h2><p class="note"><strong>Storm MSN v1.0.2:</strong> Corrige a verificação do wlcomm.exe e oferece a correção oficial da lista de contatos no Windows 11 24H2/25H2. Se recebeu "Sua lista de contatos não está disponível", feche completamente o Messenger, instale esta versão, marque a opção de compatibilidade Win11 24H2/25H2 e confirme a abertura da ferramenta do Escargot. Depois, reinicie o computador. Sua conta permanece a mesma.</p>
+<h2>Windows Live Messenger 2009 original — em português</h2><p class="note"><strong>Storm MSN v1.0.3:</strong> instalação do Messenger Plus! 5.02 opcional e correção para a lista de contatos no Windows 11 24H2/25H2. Se recebeu "Sua lista de contatos não está disponível", feche completamente o Messenger, instale esta versão, marque a opção de compatibilidade Win11 24H2/25H2 e confirme a abertura da ferramenta do Escargot. Depois, reinicie o computador. Sua conta permanece a mesma.</p>
 <p>O Storm MSN usa o <strong>Windows Live Messenger 2009 da Microsoft (14.0.8117.0416)</strong>, com o Switcher configurado para nossa rede. É o Messenger clássico, com sua interface e lista de contatos originais. <strong>Não é o cliente experimental em Python.</strong></p>
 <div class="grid">
-  <div class="feature"><b>1. Instale o WLM 2009</b><p>Um EXE do Storm MSN baixa o cliente WLM 2009 PT-BR, configura os dois executáveis e faz backup automático. Sem usar PATCH ALL manualmente.</p><p><a class="btn" href="/downloads/StormMSN-Setup-v1.0.2.exe">Baixar Storm MSN v1.0.2 (.exe)</a></p></div>
+  <div class="feature"><b>1. Instale o WLM 2009</b><p>Um EXE do Storm MSN baixa o cliente WLM 2009 PT-BR, configura os dois executáveis e faz backup automático. Sem usar PATCH ALL manualmente.</p><p><a class="btn" href="/downloads/StormMSN-Setup-v1.0.3.exe">Baixar Storm MSN v1.0.3 (.exe)</a></p></div>
   <div class="feature"><b>2. Configure o Storm MSN</b><p>Se preferir o método anterior, o pacote com os arquivos INI e o assistente PowerShell continua disponível.</p><p><a class="btn" href="/downloads/StormMSN-WLM2009-Configuracao.zip">Configuração Storm MSN</a></p></div>
   <div class="feature"><b>3. Entre na sua conta</b><p>Após instalar e configurar o cliente, entre com uma conta criada especificamente para o Storm MSN.</p><p><a class="btn alt" href="/registrar">Cadastro de usuário</a></p></div>
 </div>
+<h2 style="margin-top:38px">Messenger Plus! 5.02 (opcional)</h2>
+<p>O instalador agora inclui uma opção para instalar também o <strong>Messenger Plus! 5.02 build 712</strong>, compatível com o WLM 2009. Essa opção vem <strong>desmarcada por padrão</strong>. Quando ativada, o Storm MSN baixa o arquivo original do Escargot, verifica a integridade, extrai com o 7-Zip oficial e abre o instalador do Plus.</p>
+<p class="note"><strong>Atenção:</strong> o Messenger Plus! é um aplicativo antigo de terceiros e seu instalador pode oferecer software patrocinado (adware). Leia as etapas da instalação e <strong>recuse qualquer programa adicional ou oferta patrocinada</strong>. Alguns recursos de som e serviços online podem depender do servidor público do Escargot.</p>
 <h2 style="margin-top:38px">Windows 11 24H2/25H2: erro na lista de contatos</h2>
-<p>Se ao tentar entrar aparecer "Sua lista de contatos não está disponível", é uma incompatibilidade conhecida do banco de contatos do Windows 11 mais novo com o WLM 2009. O <strong>StormMSN-Setup v1.0.2</strong> detecta esses Windows e permite executar, com sua autorização, a correção oficial Escargot. O programa de terceiros é iniciado em sua janela, pode modificar componentes do Windows e é recomendado reiniciar depois.</p>
+<p>Se ao tentar entrar aparecer "Sua lista de contatos não está disponível", é uma incompatibilidade conhecida do banco de contatos do Windows 11 mais novo com o WLM 2009. O <strong>StormMSN-Setup v1.0.3</strong> detecta esses Windows e permite executar, com sua autorização, a correção oficial Escargot. O programa de terceiros é iniciado em sua janela, pode modificar componentes do Windows e é recomendado reiniciar depois.</p>
 <p><a class="btn alt" href="https://static.nina.chat/distro/EscargotWin24H2.zip" rel="noopener noreferrer">Baixar correção original NINA (ZIP)</a></p>
 <h2 style="margin-top:38px">Endereços do serviço</h2>
 <p><strong>Servidor de mensagens:</strong> im.hoststorm.com.br (TCP 1863 e 1864, via Oracle e AEROCOOL).<br>
@@ -155,8 +158,9 @@ async def download_wlm_config(req):
 
 async def download_storm_setup(req):
     from pathlib import Path
-    versioned=req.path.endswith("/StormMSN-Setup-v1.0.2.exe")
-    filename="StormMSN-Setup-v1.0.2.exe" if versioned else "StormMSN-Setup.exe"
+    filename=req.path.rsplit("/",1)[-1]
+    if filename not in ("StormMSN-Setup.exe","StormMSN-Setup-v1.0.2.exe","StormMSN-Setup-v1.0.3.exe"):
+        raise web.HTTPNotFound()
     executable=Path("/data/downloads") / filename
     if not executable.is_file():
         raise web.HTTPNotFound()
@@ -225,6 +229,7 @@ def register(app,backend):
     app.router.add_get("/ws/{port}",websocket_bridge)
     app.router.add_get("/downloads/StormMSN-Setup.exe",download_storm_setup)
     app.router.add_get("/downloads/StormMSN-Setup-v1.0.2.exe",download_storm_setup)
+    app.router.add_get("/downloads/StormMSN-Setup-v1.0.3.exe",download_storm_setup)
     app.router.add_get("/downloads/StormMSN-WLM2009-Configuracao.zip",download_wlm_config)
     app.router.add_get("/downloads/StormMSN-WLM2009-Instalador.zip",download_wlm_installer)
     for route,path,handler in [('get','/',home),('get','/registrar',register_get),('post','/registrar',register_post),
