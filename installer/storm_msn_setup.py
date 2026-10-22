@@ -136,8 +136,14 @@ def check_pe(pe, path):
         raise RuntimeError(f"O arquivo {path.name} não é um executável PE válido.")
     if pe.optional_header.magic != lief.PE.PE_TYPE.PE32:
         raise RuntimeError(f"Arquitetura inesperada para {path.name}: exige Windows Live 2009 x86.")
-    if path.stat().st_size < 70_000:
-        raise RuntimeError("Tamanho de executável inesperadamente pequeno: " + path.name)
+    # Escargot WLM 2009 PT-BR legitimately ships wlcomm.exe at 32,768 B.
+    # v1.0.0 incorrectly required 70 KB for every file, aborting setup.
+    # The PE parser, architecture check and ImportMe re-parse guard integrity.
+    minimum = 16_384 if path.name.lower() == "wlcomm.exe" else 70_000
+    if path.stat().st_size < minimum:
+        raise RuntimeError(
+            f"Arquivo {path.name} menor que o minimo verificado de {minimum} bytes."
+        )
 
 
 def plan_backup(paths, log):
