@@ -59,7 +59,7 @@ def rate(req,tag,limit,window):
     q.append(now);return True
 def token(req):return '<input type="hidden" name="csrf" value="'+csrf(req)+'">'
 async def home(req):
-    return page('''<div class="hero"><div><h1>O seu MSN <span>está de volta.</span></h1><p>Encontre seus amigos, mostre seu status e reviva o Messenger em uma rede independente.</p><p><a href="/registrar" class="btn">Criar conta</a><a href="/clientes" class="btn alt">Baixar WLM 2009</a></p><p style="font-size:13px">Cadastro de testes liberado. Windows Live Messenger 2009 ainda em validação.</p></div><div class="card"><h2>💬 Bate-papo clássico</h2><div class="msg"><b>Amigo • Online 🟢</b>Você lembra do MSN?</div><div class="msg right"><b>Você</b>Lembro até dos emoticons 😎</div><div class="msg"><b>Amigo</b>🔔 Chamando sua atenção!</div></div></div><div class="grid"><div class="feature"><b>🟢 Presença online</b><p>Veja quando seus amigos estiverem conectados.</p></div><div class="feature"><b>💬 Conversas</b><p>Conexão real utilizando o protocolo MSN.</p></div><div class="feature"><b>🖥️ Nostalgia</b><p>Clientes clássicos e cliente próprio do Storm MSN.</p></div></div>''')
+    return page('''<div class="hero"><div><h1>O seu MSN <span>está de volta.</span></h1><p>Encontre seus amigos, mostre seu status e reviva o Messenger em uma rede independente.</p><p><a href="/registrar" class="btn">Criar conta</a><a href="/clientes" class="btn alt">Baixar Storm MSN</a></p><p style="font-size:13px">Cadastro de testes liberado. Windows Live Messenger 2009 ainda em validação.</p></div><div class="card"><h2>💬 Bate-papo clássico</h2><div class="msg"><b>Amigo • Online 🟢</b>Você lembra do MSN?</div><div class="msg right"><b>Você</b>Lembro até dos emoticons 😎</div><div class="msg"><b>Amigo</b>🔔 Chamando sua atenção!</div></div></div><div class="grid"><div class="feature"><b>🟢 Presença online</b><p>Veja quando seus amigos estiverem conectados.</p></div><div class="feature"><b>💬 Conversas</b><p>Conexão real utilizando o protocolo MSN.</p></div><div class="feature"><b>🖥️ Nostalgia</b><p>Instalação simplificada do Windows Live Messenger 2009 original.</p></div></div>''')
 async def register_get(req,error="",success=""):
     if os.environ.get("MSN_PUBLIC_SIGNUP","0")!="1":
         return page('<div class="card form"><h2>Cadastro em preparação</h2><p>O servidor está em testes. O cadastro público será liberado após a configuração segura de HTTPS e do cliente.</p><a class="btn" href="/clientes">Ver clientes</a></div>')
@@ -126,16 +126,16 @@ async def logout(req):
 async def clients(req):
     return page("""<section class="card">
 <h2>Windows Live Messenger 2009 original — em português</h2>
-<p>O Storm MSN usa o <strong>Windows Live Messenger 2009 da Microsoft (14.0.8117.0416)</strong>, adaptado pelo Escargot Switcher. É o Messenger clássico, com sua interface e lista de contatos originais. <strong>Não é o cliente experimental em Python.</strong></p>
+<p>O Storm MSN usa o <strong>Windows Live Messenger 2009 da Microsoft (14.0.8117.0416)</strong>, com o Switcher configurado para nossa rede. É o Messenger clássico, com sua interface e lista de contatos originais. <strong>Não é o cliente experimental em Python.</strong></p>
 <div class="grid">
-  <div class="feature"><b>1. Instale o WLM 2009</b><p>Assistente baixa o WLM 2009 original pre-patcheado da fonte oficial do Escargot, verifica SHA256, instala e configura automaticamente o Storm MSN.</p><p><a class="btn" href="/downloads/StormMSN-WLM2009-Instalador.zip">Instalar WLM 2009 + Storm MSN</a></p></div>
-  <div class="feature"><b>2. Configure o Storm MSN</b><p>Se o WLM 2009 pre-patcheado ja esta instalado, use apenas este pacote de configuracao.</p><p><a class="btn" href="/downloads/StormMSN-WLM2009-Configuracao.zip">Configuração Storm MSN</a></p></div>
+  <div class="feature"><b>1. Instale o WLM 2009</b><p>Um EXE do Storm MSN baixa o cliente WLM 2009 PT-BR, configura os dois executáveis e faz backup automático. Sem usar PATCH ALL manualmente.</p><p><a class="btn" href="/downloads/StormMSN-Setup.exe">Baixar Storm MSN para Windows (.exe)</a></p></div>
+  <div class="feature"><b>2. Configure o Storm MSN</b><p>Se preferir o método anterior, o pacote com os arquivos INI e o assistente PowerShell continua disponível.</p><p><a class="btn" href="/downloads/StormMSN-WLM2009-Configuracao.zip">Configuração Storm MSN</a></p></div>
   <div class="feature"><b>3. Entre na sua conta</b><p>Após instalar e configurar o cliente, entre com uma conta criada especificamente para o Storm MSN.</p><p><a class="btn alt" href="/registrar">Cadastro de usuário</a></p></div>
 </div>
 <h2 style="margin-top:38px">Endereços do serviço</h2>
 <p><strong>Servidor de mensagens:</strong> im.hoststorm.com.br (TCP 1863 e 1864, via Oracle e AEROCOOL).<br>
 <strong>Configuração e autenticação:</strong> msn.hoststorm.com.br (HTTPS).</p>
-<p class="note"><strong>Status de testes:</strong> servidor MSNP15 acessível pela internet, serviços HTTPS operacionais e configuração de Switcher preparada. O login completo com o Windows Live Messenger 2009, o wlcomm.exe e os contatos <strong>ainda precisam ser validados com o cliente gráfico Windows</strong>. Cadastro de contas de teste habilitado. A compatibilidade final do WLM 2009 ainda está em validação.</p>
+<p class="note"><strong>Status de testes:</strong> servidor MSNP15 acessível pela internet, serviços HTTPS operacionais e configuração de Switcher preparada. O login no cliente gráfico WLM 2009 foi confirmado em uma instalação existente, mas a <strong>nova versão de instalador único ainda precisa de teste manual no Windows</strong>. Cadastro de contas de teste habilitado. A compatibilidade final do WLM 2009 ainda está em validação.</p>
 <p class="note">Para sua segurança, a configuração NÃO muda o arquivo HOSTS do Windows, não pede instalação de certificados raiz e não substitui executáveis da Microsoft. O WLM original é um programa antigo e as mensagens não possuem criptografia ponta a ponta.</p>
 </section>""", "Windows Live Messenger 2009 — Storm MSN")
 
@@ -148,6 +148,19 @@ async def download_wlm_config(req):
       "Content-Disposition": 'attachment; filename="StormMSN-WLM2009-Configuracao.zip"',
       "X-Content-Type-Options":"nosniff",
       "Cache-Control":"no-store",
+    })
+
+async def download_storm_setup(req):
+    from pathlib import Path
+    executable=Path("/data/downloads/StormMSN-Setup.exe")
+    if not executable.is_file():
+        raise web.HTTPNotFound()
+    return web.FileResponse(executable, headers={
+        "Content-Disposition": 'attachment; filename="StormMSN-Setup.exe"',
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "no-store",
+        "Content-Security-Policy": "default-src 'none'",
+        "Content-Type": "application/octet-stream",
     })
 
 async def download_wlm_installer(req):
@@ -205,6 +218,7 @@ async def websocket_bridge(req):
 def register(app,backend):
     app["backend"]=backend
     app.router.add_get("/ws/{port}",websocket_bridge)
+    app.router.add_get("/downloads/StormMSN-Setup.exe",download_storm_setup)
     app.router.add_get("/downloads/StormMSN-WLM2009-Configuracao.zip",download_wlm_config)
     app.router.add_get("/downloads/StormMSN-WLM2009-Instalador.zip",download_wlm_installer)
     for route,path,handler in [('get','/',home),('get','/registrar',register_get),('post','/registrar',register_post),
