@@ -23,6 +23,7 @@ from urllib.request import Request, urlopen
 import zipfile
 import tkinter as tk
 from tkinter import scrolledtext, messagebox
+from msgplus import install_msgplus
 
 APP_NAME = "Storm MSN"
 UPSTREAM_ZIP_URL = (
@@ -278,7 +279,7 @@ def apply_patch_one(path, dll, log):
     log("Servidor Storm MSN aplicado a " + path.name + ".")
 
 
-def install(log, apply_win11_fix=False):
+def install(log, apply_win11_fix=False, include_msgplus=False):
     log("Verificando instalações do Windows Live Messenger 2009...")
     paths = program_paths()
     if paths is None:
@@ -314,6 +315,9 @@ def install(log, apply_win11_fix=False):
     if apply_win11_fix and needs_win11_contacts_patch():
         log("Windows 11 24H2+ detectado: preparando correção da lista de contatos.")
         repaired_win11 = run_win11_contacts_patch(paths, log)
+    if include_msgplus:
+        log("Iniciando complemento opcional Messenger Plus! 5.02...")
+        install_msgplus(log, read_verified, [(p, SWITCHER_INI) for p in paths])
     log("CONFIGURAÇÃO DO WLM 2009 CONCLUÍDA!")
     log("Mensagens: " + NS_URL + ":1863 e :1864")
     log("Autenticação e contatos: https://" + WEB_URL)
@@ -328,8 +332,8 @@ class SetupUI:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Storm MSN — Instalação do Windows Live Messenger 2009")
-        self.root.geometry("705x585")
-        self.root.minsize(620, 535)
+        self.root.geometry("705x660")
+        self.root.minsize(620, 610)
         self.root.configure(bg="#e5f5ff")
         label = tk.Label(
             self.root, text="🟢 Storm MSN", bg="#e5f5ff", fg="#087cae",
@@ -368,6 +372,22 @@ class SetupUI:
                 wraplength=600, justify="center",
                 bg="#e5f5ff", fg="#66768b",
             ).pack(pady=(1, 5))
+        self.include_msgplus = tk.BooleanVar(value=False)
+        tk.Checkbutton(
+            self.root,
+            text="Instalar também Messenger Plus! 5.02 (opcional)",
+            variable=self.include_msgplus,
+            bg="#e5f5ff", fg="#125d87",
+            activebackground="#e5f5ff",
+            font=("Segoe UI", 10, "bold"),
+        ).pack(pady=(7, 1))
+        tk.Label(
+            self.root,
+            text="Complemento clássico de terceiros. Pode oferecer anúncios/programas "
+                 "patrocinados: recuse essas opções durante a instalação.",
+            wraplength=620, justify="center", bg="#e5f5ff",
+            fg="#8d5e4c", font=("Segoe UI", 9),
+        ).pack(pady=(0, 6))
         self.button = tk.Button(
             self.root, text="INSTALAR STORM MSN",
             bg="#0885ba", fg="white", font=("Segoe UI", 13, "bold"),
@@ -390,6 +410,19 @@ class SetupUI:
         self.logbox.config(state="disabled")
 
     def start(self):
+        use_plus = self.include_msgplus.get()
+        if use_plus:
+            approved = messagebox.askyesno(
+                "Messenger Plus! 5.02 — complemento opcional",
+                "O Messenger Plus! é um programa antigo de terceiros (Yuna Software), "
+                "recomendado pelo Escargot para WLM 2009.\n\n"
+                "Seu instalador pode apresentar ofertas patrocinadas. "
+                "O Storm MSN não irá aceitá-las automaticamente. "
+                "Leia todas as telas e RECUSE as ofertas.\n\n"
+                "Deseja abrir esse instalador após configurar o MSN?"
+            )
+            if not approved:
+                return
         use_24h2 = self.affected_win11 and self.apply_24h2_fix.get()
         if use_24h2:
             agreed = messagebox.askyesno(
@@ -404,7 +437,7 @@ class SetupUI:
         self.button.config(state="disabled", text="INSTALANDO...")
         def task():
             try:
-                repaired = install(self.append, apply_win11_fix=use_24h2)
+                repaired = install(self.append, apply_win11_fix=use_24h2, include_msgplus=use_plus)
                 note = ("Reinicie o Windows e teste o Messenger." if repaired else
                         "Abra o WLM 2009 e entre com sua conta.")
                 self.root.after(0, lambda: messagebox.showinfo(

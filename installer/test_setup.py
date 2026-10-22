@@ -65,5 +65,33 @@ class Windows11CompatibilityTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "Conteúdo inesperado"):
                 unpack_official_win11_patch(bad.getvalue(), Path(directory))
 
+class MessengerPlusIntegrationTests(unittest.TestCase):
+    def test_opt_in_default_is_disabled(self):
+        import inspect
+        from storm_msn_setup import install
+        sig = inspect.signature(install)
+        self.assertFalse(sig.parameters["include_msgplus"].default)
+
+    def test_vendor_encrypted_archive_extracts_expected_exe(self):
+        fixture = os.environ.get("STORM_MSGPLUS_ARCHIVE_FIXTURE")
+        if not fixture:
+            self.skipTest("Official Messenger Plus! 5.02 archive only in Windows CI")
+        from msgplus import (
+            extract_msgplus, PLUS_ARCHIVE_SHA256, PLUS_EXE_SHA256, PLUS_EXE_SIZE,
+        )
+        payload=Path(fixture).read_bytes()
+        self.assertEqual(hashlib.sha256(payload).hexdigest(),PLUS_ARCHIVE_SHA256)
+        with tempfile.TemporaryDirectory() as directory:
+            exe=extract_msgplus(payload,Path(directory))
+            self.assertEqual(exe.stat().st_size,PLUS_EXE_SIZE)
+            self.assertEqual(hashlib.sha256(exe.read_bytes()).hexdigest(),PLUS_EXE_SHA256)
+
+    def test_corrupt_vendor_archive_rejected_without_launching(self):
+        from msgplus import extract_msgplus
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaises(ValueError):
+                extract_msgplus(b"not the real encrypted vendor archive",Path(directory))
+
+
 if __name__=="__main__":
     unittest.main()

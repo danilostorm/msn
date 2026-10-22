@@ -62,3 +62,16 @@ O cliente Microsoft nao e redistribuido por este repositorio.
 
 ## Cadastro de testes
 Cadastro de testes habilitado via MSN_PUBLIC_SIGNUP=1. Protecoes: CSRF, honeypot, limite por IP (3/hora) e ate 40 novas contas por 24h. Senha WLM 2009 entre 12 e 15 caracteres. Ainda nao ha confirmacao por e-mail; evitar abertura irrestrita do servico ate revisao.
+
+
+## Opcional: Messenger Plus! 5.02 build 712 (Storm MSN v1.0.3)
+- O WLM 2009 original continua como unico cliente principal.
+- A interface do instalador tem checkbox desmarcado "Instalar também Messenger Plus! 5.02 (opcional)".
+- O MsgPlus-5.02.712.7z enviado pelo usuario tem SHA-256 igual ao download oficial do Escargot: https://escargot.chat/download/msn/extras/
+- A versao do Escargot usa senha 7z escargot. A extracao e feita com py7zr sob demanda, sem embutir o instalador da Yuna no nosso EXE.
+- SHA-256 7z: bc599c6640c5b9656434da810b2b7b25a7e7eaa8c4c2a7e38feb01ae485d1be8.
+- SHA-256 MsgPlus-5.02.712.exe extraido: 6bb92709e160a8410cd2fb465c40ddf6fd7b9d8891473fcc69760a2caa5b4918.
+- O instalador Messenger Plus! e um programa de terceiros que pode apresentar OFERTAS PATROCINADAS/ADWARE. O usuario deve revisar a tela e RECUSAR qualquer sponsor; o Storm MSN nao aprova ofertas automaticamente.
+- Compativel com WLM 2009 segundo o Escargot, porem sons online podem depender da rede propria do Escargot e alguns recursos podem nao funcionar no Storm MSN.
+- Configuracao do servidor Storm MSN nos dois INIs e restabelecida apos a instalacao do complemento.
+- O Plus nao foi validado manualmente em uma instalacao final do WLM 2009 no Windows; o teste CI cobre integridade e extracao do pacote original.
