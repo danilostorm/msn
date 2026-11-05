@@ -13,6 +13,7 @@ class ClassicLogin extends StatefulWidget {
     required this.status,
     required this.onStatus,
     required this.onLogin,
+    required this.onCancel,
     required this.onRegister,
     required this.showPassword,
     required this.onShowPassword,
@@ -26,7 +27,7 @@ class ClassicLogin extends StatefulWidget {
   final String? error;
   final String status;
   final ValueChanged<String> onStatus;
-  final VoidCallback onLogin, onRegister, onShowPassword;
+  final VoidCallback onLogin, onCancel, onRegister, onShowPassword;
   final bool showPassword, rememberEmail;
   final ValueChanged<bool> onRememberEmail;
 
@@ -231,31 +232,7 @@ class _ClassicLoginState extends State<ClassicLogin>
               child: _ClassicLoginAvatar(size: width < 320 ? 101 : 111),
             ),
           ),
-          Positioned(
-            right: 17,
-            top: 16,
-            child: widget.connecting
-                ? RotationTransition(
-                    turns: _buddySpin,
-                    child: const _PeopleMark(size: 31),
-                  )
-                : const _PeopleMark(size: 29),
-          ),
-          if (widget.connecting)
-            Positioned(
-              bottom: 5,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Text(
-                  'Entrando no Messenger...',
-                  style: TextStyle(
-                    color: Colors.lightBlue.shade500,
-                    fontSize: 11,
-                  ),
-                ),
-              ),
-            ),
+          const Positioned(right: 17, top: 16, child: _PeopleMark(size: 29)),
         ],
       ),
     );
@@ -277,7 +254,7 @@ class _ClassicLoginState extends State<ClassicLogin>
         autocorrect: false,
         keyboardType: password
             ? TextInputType.visiblePassword
-            : TextInputType.emailAddress,
+            : TextInputType.text,
         textInputAction: password ? TextInputAction.done : TextInputAction.next,
         autofillHints: password
             ? const [AutofillHints.password]
@@ -321,7 +298,7 @@ class _ClassicLoginState extends State<ClassicLogin>
           children: [
             _field(
               widget.email,
-              'Windows Live ID',
+              'Usuário ou e-mail',
               suffix: PopupMenuButton<String>(
                 tooltip: 'Selecionar ID lembrado',
                 enabled: widget.email.text.isNotEmpty,
@@ -557,26 +534,48 @@ class _ClassicLoginState extends State<ClassicLogin>
                       child: Column(
                         children: [
                           _hero(width),
-                          Text(
-                            'Bem-vindo novamente!',
-                            style: TextStyle(
-                              color: const Color(0xff73d5f2),
-                              fontSize: width < 310 ? 17 : 19,
-                            ),
-                          ),
-                          SizedBox(height: c.maxHeight > 690 ? 53 : 41),
-                          _loginFields(width),
-                          const SizedBox(height: 17),
-                          TextButton(
-                            onPressed: widget.onRegister,
-                            child: const Text(
-                              'Criar uma conta Storm MSN',
+                          if (widget.connecting) ...[
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Entrando...',
                               style: TextStyle(
-                                fontSize: 11,
-                                color: Color(0xff277da9),
+                                color: Color(0xff72d3ee),
+                                fontSize: 20,
                               ),
                             ),
-                          ),
+                            const SizedBox(height: 29),
+                            RotationTransition(
+                              turns: _buddySpin,
+                              child: const _PeopleMark(size: 32),
+                            ),
+                            const SizedBox(height: 25),
+                            OutlinedButton(
+                              key: const Key('msn-cancel-login'),
+                              onPressed: widget.onCancel,
+                              child: const Text('Cancelar'),
+                            ),
+                          ] else ...[
+                            Text(
+                              'Bem-vindo novamente!',
+                              style: TextStyle(
+                                color: const Color(0xff73d5f2),
+                                fontSize: width < 310 ? 17 : 19,
+                              ),
+                            ),
+                            SizedBox(height: c.maxHeight > 690 ? 53 : 41),
+                            _loginFields(width),
+                            const SizedBox(height: 17),
+                            TextButton(
+                              onPressed: widget.onRegister,
+                              child: const Text(
+                                'Cadastrar usuário e e-mail',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xff277da9),
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
