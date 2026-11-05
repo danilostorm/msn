@@ -5,6 +5,7 @@ plugins {
 }
 
 // The signing secret is supplied by the deployment host and never committed.
+val stormExternalSigning = System.getenv("STORM_MSN_EXTERNAL_SIGNING") == "1"
 val stormReleaseKeystore = System.getenv("STORM_MSN_RELEASE_KEYSTORE")
 val stormReleasePassword = System.getenv("STORM_MSN_RELEASE_PASSWORD")
 
@@ -47,12 +48,14 @@ android {
             val officialRelease = gradle.startParameter.taskNames.any { task ->
                 task.contains("Release", ignoreCase = true)
             }
-            if (officialRelease) {
+            if (officialRelease && !stormExternalSigning) {
                 require(!stormReleaseKeystore.isNullOrBlank() && !stormReleasePassword.isNullOrBlank()) {
                     "Storm MSN official release requires signing credentials on the build host."
                 }
             }
-            signingConfig = if (!stormReleaseKeystore.isNullOrBlank() && !stormReleasePassword.isNullOrBlank()) {
+            signingConfig = if (stormExternalSigning) {
+                null // Explicitly unsigned APK for a separate apksigner step.
+            } else if (!stormReleaseKeystore.isNullOrBlank() && !stormReleasePassword.isNullOrBlank()) {
                 signingConfigs.getByName("stormRelease")
             } else {
                 signingConfigs.getByName("debug") // only for local/debug configuration
