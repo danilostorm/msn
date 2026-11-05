@@ -388,6 +388,36 @@ class MsnClient extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Disconnect transport for an Android foreground-service handoff while
+  /// preserving the visible chat history for when the app resumes.
+  Future<void> handoffDisconnect() async {
+    _quitting = true;
+    _notification?.send('OUT');
+    for (final sb in _switchboards.values) {
+      await sb.close();
+    }
+    _switchboards.clear();
+    await _notification?.close();
+    _notification = null;
+    online = false;
+    connecting = false;
+    _pending.clear();
+    _calls.clear();
+    notifyListeners();
+  }
+
+  /// Import messages received and encrypted by the Android service while
+  /// the Flutter UI isolate was suspended. They were already notified there.
+  void restoreBackgroundMessage(String sender, String body) {
+    final address = sender.trim().toLowerCase();
+    if (address.isEmpty || body.isEmpty) return;
+    buddies.putIfAbsent(address, () => MsnBuddy(address));
+    (messages[address] ??= []).add(MsnMessage(address, body));
+    unread[address] = (unread[address] ?? 0) + 1;
+    recentIncoming = address;
+    notifyListeners();
+  }
+
   Future<void> signOut() async {
     _quitting = true;
     _notification?.send('OUT');
