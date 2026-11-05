@@ -98,3 +98,71 @@ anúncio e os formulários de consentimento apropriados na conta do Google.
 O Cloudflare Access pode manter textos padrão do fornecedor em inglês mesmo
 com as páginas de explicação e cadastro Storm MSN em português. O chat
 desktop-Android com duas contas reais ainda exige teste manual em dispositivo.
+
+## Versão 0.6.0 — comunicação moderna com visual Messenger 2009
+
+### Android
+
+- Removida a barra artificial de título da tela de entrada. Os menus clássicos
+  ficam na primeira linha; a mesma faixa redundante também foi removida da
+  conversa. Mantida a identidade azul/verde do Windows Live Messenger 2009.
+- **Salvar senha**: somente com consentimento explícito; identificador e senha
+  ficam criptografados via `flutter_secure_storage`/Android Keystore. Nunca
+  são incluídos no código, nas notificações, nos logs ou nos backups Android.
+  Desmarcar a opção ou fazer logout elimina os dados protegidos. O Android
+  Manifest define `allowBackup=false`.
+- **Conectar automaticamente**: ao reabrir, usa o identificador e a senha
+  criptografados para renovar a sessão com o Storm MSN; ao recuperar o foco,
+  também tenta reconectar se a rede anterior tiver caído.
+- **Manter online em segundo plano**: opt-in separado e experimental com serviço
+  do tipo `remoteMessaging` do Android. O serviço mantém uma notificação
+  permanente; ao minimizar o app recebe a sessão MSNP7, envia avisos locais de
+  conversa e registra até 40 mensagens no armazenamento criptografado. Ao
+  voltar ao app, a sessão é devolvida à interface e as mensagens são recuperadas.
+  O recurso exige permissão de notificações e pode ser interrompido pela gestão
+  de energia do fabricante; o Android NÃO garante execução contínua.
+  O serviço não inicia automaticamente após reinício do celular.
+- Mensagens recebidas com socket ativo podem gerar notificação local e abrir o
+  contato correto ao tocar. **FCM ainda não configurado**: para notificações
+  verdadeiramente confiáveis com o processo encerrado, é necessário registrar
+  o aplicativo em um projeto Firebase, conectar Firebase Cloud Messaging ao
+  backend que recebe mensagens do cliente desktop e testar os estados do Android.
+- **Emoticons e emojis**: seletor nativo por abas (`:)`, `:D`, `(L)` e emojis
+  Unicode), com inserção na posição atual do cursor, inclusive na barra de
+  digitação da conversa.
+- **Mensagem de voz**: botão de microfone/Parar na barra de envio; AAC/M4A
+  mono até 60 segundos, envio HTTPS autenticado, player integrado no Android.
+  O MSNP7 envia um URL HTTPS opaco em texto que também pode ser aberto no PC.
+  O arquivo é hospedado por no máximo 30 dias, limitado a 3 MiB; qualquer
+  pessoa com o link pode abri-lo, portanto NÃO é criptografia ponta a ponta.
+
+### Backend
+
+- Novos endpoints `POST /api/mobile/voice` (Bearer token) e
+  `GET /api/mobile/voice/{48-hex}` (capability URL). Gravações ficam em
+  `/data/voice-notes` dentro do volume persistente. O servidor rejeita
+  arquivos diferentes de M4A, impõe limite de tamanho, rate limit de upload,
+  não executa conteúdo e remove arquivos antigos durante novos uploads.
+
+### Inspirações e licenças
+
+Foram avaliados os repositórios `loyldg/mytelegram` (Apache-2.0),
+`telegramdesktop/tdesktop` (GPLv3 + OpenSSL exception), `rmyndharis/OpenWA`
+(MIT), `karem505/whatRust` (MIT) e `amanharwara/altus` (GPLv3).
+A implementação dos recursos novos é independente; nenhum código desses
+repositórios foi copiado. MyTelegram gratuito não inclui as chamadas,
+stickers, notificações Firebase e outros recursos anunciados apenas na edição
+Pro. OpenWA é um gateway para WhatsApp, não um substituto do protocolo MSN.
+
+### Ainda pendente
+
+- Notificações FCM com app encerrado (exige projeto Firebase e integração no
+  servidor para encaminhar mensagens desktop -> Android; o serviço Android é
+  apenas um paliativo sujeito a restrições de energia).
+- Chamadas de voz e vídeo nativas via WebRTC, sinalização HTTPS/WebSocket,
+  TURN próprio e permissões Android, com teste entre dois celulares. Não
+  substituir os botões por ações fictícias.
+- Sincronização de fotos de perfil legadas e histórico de conversas do PC.
+- Validação do modo em segundo plano, microfone e player num aparelho Android
+  real com conta de teste; testes unitários/compilação não são garantia de
+  entrega de mensagens após encerramento forçado.
