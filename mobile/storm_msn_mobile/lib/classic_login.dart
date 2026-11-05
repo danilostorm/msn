@@ -1,7 +1,8 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
-/// Login com a composição clássica do Windows Live Messenger 2009.
-/// Arte desenhada em Flutter e controles adaptados para toque.
+/// Janela de entrada inspirada nas proporções do WLM 2009 exibido pelo usuário.
+/// Reimplementação nativa; não contém DLLs nem imagens originais da Microsoft.
 class ClassicLogin extends StatefulWidget {
   const ClassicLogin({
     super.key,
@@ -25,19 +26,20 @@ class ClassicLogin extends StatefulWidget {
   final String? error;
   final String status;
   final ValueChanged<String> onStatus;
-  final VoidCallback onLogin;
-  final VoidCallback onRegister;
-  final bool showPassword;
-  final VoidCallback onShowPassword;
-  final bool rememberEmail;
+  final VoidCallback onLogin, onRegister, onShowPassword;
+  final bool showPassword, rememberEmail;
   final ValueChanged<bool> onRememberEmail;
 
   @override
   State<ClassicLogin> createState() => _ClassicLoginState();
 }
 
-class _ClassicLoginState extends State<ClassicLogin> {
-  final _statuses = const <String, String>{
+class _ClassicLoginState extends State<ClassicLogin>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _buddySpin;
+  bool _showOptions = false;
+
+  static const _statuses = <String, String>{
     'NLN': 'Disponível',
     'BSY': 'Ocupado',
     'AWY': 'Ausente',
@@ -45,529 +47,547 @@ class _ClassicLoginState extends State<ClassicLogin> {
   };
 
   @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, c) {
-        final compact = c.maxWidth < 535;
-        final frameWidth = c.maxWidth > 650 ? 600.0 : c.maxWidth - 22;
-        return Container(
-          width: double.infinity,
-          height: double.infinity,
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xffc3ecf8), Color(0xffe8f6fc), Color(0xfff5fafc)],
-              stops: [0.0, 0.38, 1.0],
-            ),
-          ),
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 2),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: frameWidth),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: const Color(0xfffcfdfd),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: const Color(0xff81aabd),
-                      width: 1,
-                    ),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x290a6083),
-                        blurRadius: 18,
-                        spreadRadius: 1,
-                        offset: Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(5),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _titleBar(),
-                        _header(compact),
-                        _form(compact),
-                        _footer(),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+  void initState() {
+    super.initState();
+    _buddySpin = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 850),
     );
+    if (widget.connecting) _buddySpin.repeat();
   }
 
-  Widget _titleBar() {
-    return Container(
-      height: 34,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xffeefcff), Color(0xffcde9f2), Color(0xffa4cedf)],
-        ),
-        border: Border(bottom: BorderSide(color: Color(0xff95c4d7))),
-      ),
-      child: const Row(
-        children: [
-          _PeopleMark(size: 23),
-          SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Windows Live Messenger',
-              style: TextStyle(
-                fontSize: 13,
-                color: Color(0xff22516c),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          Text(
-            'Storm MSN',
-            style: TextStyle(fontSize: 10, color: Color(0xff557f93)),
+  @override
+  void didUpdateWidget(covariant ClassicLogin oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.connecting && !oldWidget.connecting) {
+      _buddySpin.repeat();
+    } else if (!widget.connecting && oldWidget.connecting) {
+      _buddySpin.stop();
+      _buddySpin.reset();
+    }
+  }
+
+  @override
+  void dispose() {
+    _buddySpin.dispose();
+    super.dispose();
+  }
+
+  void _info(String title, String text) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(text),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
           ),
         ],
       ),
     );
   }
 
-  Widget _header(bool compact) {
-    return SizedBox(
-      height: compact ? 96 : 126,
-      width: double.infinity,
-      child: CustomPaint(
-        painter: _AeroBackdrop(),
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 5, 8, 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+  void _menuAction(String action) {
+    switch (action) {
+      case 'login':
+        widget.onLogin();
+      case 'register':
+        widget.onRegister();
+      case 'options':
+        setState(() => _showOptions = true);
+      case 'privacy':
+        _info(
+          'Declaração de Privacidade',
+          'O Storm MSN utiliza uma conexão WSS protegida entre o aplicativo '
+              'e o servidor. O protocolo de mensagens é legado e não oferece '
+              'criptografia ponta a ponta. Não reutilize senhas de outros serviços.',
+        );
+      case 'status':
+        _info(
+          'Status do servidor',
+          'A conexão com o Storm MSN é verificada quando você entra. '
+              'Se aparecer uma mensagem de erro, confira a rede e tente novamente. '
+              'Este painel não faz monitoramento em tempo real.',
+        );
+      default:
+        _info(
+          'Windows Live Messenger — Storm MSN',
+          'Cliente móvel independente inspirado no Messenger 2009. '
+              'Utilize a conta criada no servidor Storm MSN.',
+        );
+    }
+  }
+
+  Widget _menu(String title, List<(String, String)> items) {
+    return PopupMenuButton<String>(
+      padding: EdgeInsets.zero,
+      tooltip: title,
+      onSelected: _menuAction,
+      itemBuilder: (_) => [
+        for (final (name, action) in items)
+          PopupMenuItem<String>(value: action, child: Text(name)),
+      ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        child: Text(
+          title,
+          style: const TextStyle(fontSize: 11.5, color: Color(0xff1a2735)),
+        ),
+      ),
+    );
+  }
+
+  Widget _top() {
+    return Column(
+      children: [
+        Container(
+          height: 32,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xfffafcff), Color(0xffe2e7f0)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+          ),
+          child: Row(
+            children: [
+              const _PeopleMark(size: 18),
+              const SizedBox(width: 6),
+              const Expanded(
+                child: Text(
+                  'Windows Live Messenger',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12.5, color: Color(0xff202832)),
+                ),
+              ),
+              const Icon(Icons.minimize, size: 17, color: Color(0xff4b5158)),
+              const SizedBox(width: 16),
+              const Icon(Icons.crop_square, size: 15, color: Color(0xff4b5158)),
+              const SizedBox(width: 16),
+              const Icon(Icons.close, size: 17, color: Color(0xff4b5158)),
+            ],
+          ),
+        ),
+        Container(
+          height: 27,
+          width: double.infinity,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xfff9fbfe), Color(0xffe0edf7)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+            border: Border(bottom: BorderSide(color: Color(0xff8abbd1))),
+          ),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
               children: [
-                Text(
-                  'Entrar no',
-                  style: TextStyle(
-                    color: const Color(0xff55798b),
-                    fontSize: compact ? 20 : 25,
-                    fontWeight: FontWeight.w300,
-                  ),
-                ),
-                Text.rich(
-                  const TextSpan(
-                    children: [
-                      TextSpan(text: 'Windows Live '),
-                      TextSpan(
-                        text: 'Messenger',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ],
-                  ),
-                  maxLines: 1,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: const Color(0xff3c5362),
-                    fontSize: compact ? 20 : 27,
-                    fontWeight: FontWeight.w300,
-                  ),
-                ),
+                _menu('Arquivo', const [
+                  ('Entrar', 'login'),
+                  ('Criar conta', 'register'),
+                ]),
+                _menu('Contatos', const [
+                  ('Entre para ver seus contatos', 'help'),
+                ]),
+                _menu('Ações', const [
+                  ('Entrar', 'login'),
+                  ('Criar conta', 'register'),
+                ]),
+                _menu('Ferramentas', const [('Opções de login', 'options')]),
+                _menu('Ajuda', const [
+                  ('Sobre o Storm MSN', 'help'),
+                  ('Status do servidor', 'status'),
+                ]),
               ],
             ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _hero(double width) {
+    return SizedBox(
+      height: 158,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 79,
+            child: CustomPaint(painter: _WlmHillsPainter()),
+          ),
+          Positioned(
+            top: 26,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: _ClassicLoginAvatar(size: width < 320 ? 101 : 111),
+            ),
+          ),
+          Positioned(
+            right: 17,
+            top: 16,
+            child: widget.connecting
+                ? RotationTransition(
+                    turns: _buddySpin,
+                    child: const _PeopleMark(size: 31),
+                  )
+                : const _PeopleMark(size: 29),
+          ),
+          if (widget.connecting)
+            Positioned(
+              bottom: 5,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Text(
+                  'Entrando no Messenger...',
+                  style: TextStyle(
+                    color: Colors.lightBlue.shade500,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _field(
+    TextEditingController controller,
+    String hint, {
+    bool password = false,
+    Widget? suffix,
+  }) {
+    return SizedBox(
+      height: 34,
+      child: TextField(
+        controller: controller,
+        enabled: !widget.connecting,
+        obscureText: password && !widget.showPassword,
+        enableSuggestions: !password,
+        autocorrect: false,
+        keyboardType: password
+            ? TextInputType.visiblePassword
+            : TextInputType.emailAddress,
+        textInputAction: password ? TextInputAction.done : TextInputAction.next,
+        autofillHints: password
+            ? const [AutofillHints.password]
+            : const [AutofillHints.email, AutofillHints.username],
+        onSubmitted: password ? (_) => widget.onLogin() : null,
+        style: const TextStyle(fontSize: 12.5, color: Color(0xff2b4653)),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: const TextStyle(fontSize: 12, color: Color(0xff9fb6c6)),
+          isDense: true,
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: 7,
+          ),
+          suffixIcon: suffix,
+          suffixIconConstraints: const BoxConstraints(
+            minHeight: 30,
+            minWidth: 27,
+          ),
+          enabledBorder: const OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(2)),
+            borderSide: BorderSide(color: Color(0xffafcbde)),
+          ),
+          focusedBorder: const OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(2)),
+            borderSide: BorderSide(color: Color(0xff298dbb), width: 1.3),
           ),
         ),
       ),
     );
   }
 
-  // Preserva a composição horizontal original em telas comuns de celular.
-  Widget _form(bool compact) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        compact ? 10 : 30,
-        compact ? 4 : 0,
-        compact ? 10 : 30,
-        compact ? 4 : 20,
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          if (constraints.maxWidth < 276) {
-            return Column(
-              children: [
-                const _ClassicAvatar(size: 82),
-                const SizedBox(height: 13),
-                _fields(),
-              ],
-            );
-          }
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 5),
-                child: _ClassicAvatar(size: compact ? 79 : 122),
-              ),
-              SizedBox(width: compact ? 10 : 24),
-              Expanded(child: _fields()),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _fields() {
+  Widget _loginFields(double width) {
     return AutofillGroup(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _classicField(
-            controller: widget.email,
-            hint: 'Endereço de e-mail',
-            autofill: [AutofillHints.username, AutofillHints.email],
-            keyboardType: TextInputType.emailAddress,
-            action: TextInputAction.next,
-            enabled: !widget.connecting,
-          ),
-          const SizedBox(height: 9),
-          _classicField(
-            controller: widget.password,
-            hint: 'Senha',
-            autofill: [AutofillHints.password],
-            action: TextInputAction.done,
-            obscure: !widget.showPassword,
-            enabled: !widget.connecting,
-            onSubmitted: (_) => widget.onLogin(),
-            suffix: IconButton(
-              onPressed: widget.onShowPassword,
-              tooltip: widget.showPassword ? 'Ocultar senha' : 'Mostrar senha',
-              icon: Icon(
-                widget.showPassword
-                    ? Icons.visibility_off_outlined
-                    : Icons.visibility_outlined,
-                color: const Color(0xff6b94a8),
-                size: 18,
-              ),
-            ),
-          ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(
-              onPressed: _showPasswordHelp,
-              style: TextButton.styleFrom(
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: width < 350 ? 22 : 27),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _field(
+              widget.email,
+              'Windows Live ID',
+              suffix: PopupMenuButton<String>(
+                tooltip: 'Selecionar ID lembrado',
+                enabled: widget.email.text.isNotEmpty,
                 padding: EdgeInsets.zero,
-                minimumSize: const Size(44, 30),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: const Text(
-                'Esqueceu sua senha?',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Color(0xff1377a2),
-                  decoration: TextDecoration.underline,
+                iconSize: 16,
+                onSelected: (email) => widget.email.text = email,
+                itemBuilder: (_) => [
+                  PopupMenuItem(
+                    value: widget.email.text,
+                    child: Text(widget.email.text),
+                  ),
+                ],
+                icon: const Icon(
+                  Icons.arrow_drop_down,
+                  color: Color(0xff3c6176),
                 ),
               ),
             ),
-          ),
-          Row(
-            children: [
-              const Text(
-                'Entrar como:',
-                style: TextStyle(fontSize: 12, color: Color(0xff464e56)),
-              ),
-              const SizedBox(width: 7),
-              _PresenceDot(status: widget.status),
-              const SizedBox(width: 4),
-              Expanded(
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    isDense: true,
-                    isExpanded: true,
-                    value: _statuses.containsKey(widget.status)
-                        ? widget.status
-                        : 'NLN',
-                    style: const TextStyle(
-                      color: Color(0xff313f47),
-                      fontSize: 12,
-                    ),
-                    items: _statuses.entries
-                        .map(
-                          (e) => DropdownMenuItem<String>(
-                            value: e.key,
-                            child: Text(e.value),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: widget.connecting
-                        ? null
-                        : (value) {
-                            if (value != null) widget.onStatus(value);
-                          },
-                  ),
+            const SizedBox(height: 7),
+            _field(
+              widget.password,
+              'Senha',
+              password: true,
+              suffix: InkWell(
+                onTap: widget.onShowPassword,
+                child: Icon(
+                  widget.showPassword
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  size: 16,
+                  color: const Color(0xff90adb8),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 3),
-          InkWell(
-            onTap: widget.connecting
-                ? null
-                : () => widget.onRememberEmail(!widget.rememberEmail),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 3),
+            ),
+            Container(
+              padding: const EdgeInsets.only(
+                left: 5,
+                right: 2,
+                top: 5,
+                bottom: 3,
+              ),
+              decoration: const BoxDecoration(
+                border: Border(
+                  left: BorderSide(color: Color(0xffd1e5f0)),
+                  right: BorderSide(color: Color(0xffd1e5f0)),
+                  bottom: BorderSide(color: Color(0xffd1e5f0)),
+                ),
+              ),
               child: Row(
                 children: [
-                  SizedBox(
-                    height: 22,
-                    width: 24,
-                    child: Checkbox(
-                      value: widget.rememberEmail,
-                      onChanged: widget.connecting
-                          ? null
-                          : (v) => widget.onRememberEmail(v ?? false),
-                      activeColor: const Color(0xff1d9ec3),
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  const Text(
+                    'Entrar como:',
+                    style: TextStyle(fontSize: 11, color: Color(0xff4b5a63)),
+                  ),
+                  const SizedBox(width: 7),
+                  _PresenceDot(status: widget.status),
+                  const SizedBox(width: 3),
+                  Expanded(
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        isExpanded: true,
+                        isDense: true,
+                        value: widget.status,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          color: Color(0xff304854),
+                        ),
+                        iconSize: 16,
+                        onChanged: widget.connecting
+                            ? null
+                            : (status) {
+                                if (status != null) widget.onStatus(status);
+                              },
+                        items: [
+                          for (final item in _statuses.entries)
+                            DropdownMenuItem(
+                              value: item.key,
+                              child: Text(
+                                item.value,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      'Lembrar meu ID',
-                      style: TextStyle(fontSize: 12, color: Color(0xff526575)),
+                  IconButton(
+                    key: const Key('more-login-options'),
+                    onPressed: () =>
+                        setState(() => _showOptions = !_showOptions),
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(
+                      minWidth: 27,
+                      minHeight: 27,
+                    ),
+                    padding: EdgeInsets.zero,
+                    icon: Icon(
+                      _showOptions
+                          ? Icons.keyboard_arrow_up
+                          : Icons.keyboard_arrow_down,
+                      color: const Color(0xff4595b5),
+                      size: 20,
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-          if (widget.error != null && widget.error!.trim().isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Semantics(
-              liveRegion: true,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xfffff0ef),
-                  border: Border.all(color: const Color(0xffe8adad)),
+            if (_showOptions)
+              CheckboxListTile(
+                title: const Text(
+                  'Lembrar meu ID',
+                  style: TextStyle(fontSize: 11),
                 ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(
-                      Icons.error_outline,
-                      size: 17,
-                      color: Color(0xffb72f34),
+                controlAffinity: ListTileControlAffinity.leading,
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                value: widget.rememberEmail,
+                onChanged: (v) => widget.onRememberEmail(v ?? false),
+              ),
+            if (widget.error != null && widget.error!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 9),
+                child: Text(
+                  widget.error!,
+                  style: const TextStyle(
+                    color: Color(0xffae3333),
+                    fontSize: 11,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            const SizedBox(height: 18),
+            Align(
+              child: SizedBox(
+                width: 90,
+                height: 31,
+                child: OutlinedButton(
+                  key: const Key('msn-login-button'),
+                  onPressed: widget.connecting ? null : widget.onLogin,
+                  style: OutlinedButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    backgroundColor: const Color(0xfffbfeff),
+                    foregroundColor: const Color(0xff213f51),
+                    side: const BorderSide(
+                      color: Color(0xff2096c1),
+                      width: 1.4,
                     ),
-                    const SizedBox(width: 7),
-                    Expanded(
-                      child: Text(
-                        widget.error!,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xff9b252a),
-                        ),
-                      ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(2),
                     ),
-                  ],
+                  ),
+                  child: Text(
+                    widget.connecting ? 'Entrando...' : 'Entrar',
+                    style: const TextStyle(fontSize: 12),
+                  ),
                 ),
               ),
             ),
           ],
-          const SizedBox(height: 13),
-          Row(
+        ),
+      ),
+    );
+  }
+
+  Widget _bottom() {
+    return Container(
+      height: 42,
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xfff3fafc), Color(0xffc0f1fc)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+      ),
+      child: Center(
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Expanded(
-                child: SizedBox(
-                  height: 38,
-                  child: ElevatedButton(
-                    onPressed: widget.connecting ? null : widget.onLogin,
-                    style: ElevatedButton.styleFrom(
-                      elevation: 1,
-                      backgroundColor: const Color(0xffe8f6fc),
-                      foregroundColor: const Color(0xff245a76),
-                      padding: EdgeInsets.zero,
-                      side: const BorderSide(color: Color(0xff48a2c1)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    child: widget.connecting
-                        ? const SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text(
-                            'Entrar',
+              _footerLink('Declaração de Privacidade', 'privacy'),
+              const Text(
+                ' | ',
+                style: TextStyle(color: Color(0xff86c4d4), fontSize: 11),
+              ),
+              _footerLink('Status do servidor', 'status'),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _footerLink(String label, String action) {
+    return InkWell(
+      onTap: () => _menuAction(action),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 10),
+        child: Text(
+          label,
+          style: const TextStyle(color: Color(0xff1366b0), fontSize: 11),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        final width = math.min(430.0, c.maxWidth);
+        return Container(
+          width: double.infinity,
+          color: const Color(0xffdbf2f9),
+          alignment: Alignment.center,
+          child: SizedBox(
+            width: width,
+            height: c.maxHeight,
+            child: DecoratedBox(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                border: Border(
+                  left: BorderSide(color: Color(0xffafd3e5)),
+                  right: BorderSide(color: Color(0xffafd3e5)),
+                ),
+              ),
+              child: Column(
+                children: [
+                  _top(),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          _hero(width),
+                          Text(
+                            'Bem-vindo novamente!',
                             style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
+                              color: const Color(0xff73d5f2),
+                              fontSize: width < 310 ? 17 : 19,
                             ),
                           ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: SizedBox(
-                  height: 38,
-                  child: OutlinedButton(
-                    onPressed: widget.connecting
-                        ? null
-                        : () {
-                            widget.password.clear();
-                            FocusScope.of(context).unfocus();
-                          },
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xff4d5357),
-                      padding: EdgeInsets.zero,
-                      side: const BorderSide(color: Color(0xffb6c6d0)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(2),
+                          SizedBox(height: c.maxHeight > 690 ? 53 : 41),
+                          _loginFields(width),
+                          const SizedBox(height: 17),
+                          TextButton(
+                            onPressed: widget.onRegister,
+                            child: const Text(
+                              'Criar uma conta Storm MSN',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Color(0xff277da9),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    child: const Text(
-                      'Cancelar',
-                      style: TextStyle(fontSize: 12),
-                    ),
                   ),
-                ),
+                  _bottom(),
+                ],
               ),
-            ],
+            ),
           ),
-          const SizedBox(height: 15),
-          Wrap(
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 3,
-            children: [
-              const Text(
-                'Não tem uma conta?',
-                style: TextStyle(fontSize: 12, color: Color(0xff545d65)),
-              ),
-              TextButton(
-                onPressed: widget.onRegister,
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 3),
-                  minimumSize: const Size(44, 32),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: const Text(
-                  'Cadastre-se',
-                  style: TextStyle(
-                    fontSize: 12,
-                    decoration: TextDecoration.underline,
-                    color: Color(0xff086fa1),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showPasswordHelp() {
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Recuperar senha'),
-        content: const Text(
-          'A recuperação automática ainda não está disponível no Storm MSN. '
-          'Use a senha da sua conta Storm MSN, não a senha de uma conta Microsoft. '
-          'Não compartilhe sua senha com ninguém.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Entendi'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _classicField({
-    required TextEditingController controller,
-    required String hint,
-    required List<String> autofill,
-    TextInputType? keyboardType,
-    TextInputAction? action,
-    bool obscure = false,
-    bool enabled = true,
-    Widget? suffix,
-    ValueChanged<String>? onSubmitted,
-  }) {
-    return SizedBox(
-      height: 40,
-      child: TextField(
-        controller: controller,
-        keyboardType: keyboardType,
-        textInputAction: action,
-        obscureText: obscure,
-        enableSuggestions: !obscure,
-        autocorrect: false,
-        enabled: enabled,
-        onSubmitted: onSubmitted,
-        autofillHints: autofill,
-        style: const TextStyle(color: Color(0xff243c4d), fontSize: 14),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: const TextStyle(color: Color(0xff8c99a2), fontSize: 13),
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 12,
-          ),
-          filled: true,
-          fillColor: Colors.white,
-          suffixIcon: suffix,
-          enabledBorder: const OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(2)),
-            borderSide: BorderSide(color: Color(0xffa8b9c3)),
-          ),
-          focusedBorder: const OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(2)),
-            borderSide: BorderSide(color: Color(0xff159bc8), width: 1.4),
-          ),
-          disabledBorder: const OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(2)),
-            borderSide: BorderSide(color: Color(0xffc4d2da)),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _footer() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
-      decoration: const BoxDecoration(
-        color: Color(0xfff4f8fa),
-        border: Border(top: BorderSide(color: Color(0xffe0ebf0))),
-      ),
-      child: const Wrap(
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 8,
-        children: [
-          Text(
-            'Storm MSN Mobile · Versão de testes',
-            style: TextStyle(fontSize: 10, color: Color(0xff7a95a4)),
-          ),
-          Text(
-            'Conexão segura',
-            style: TextStyle(fontSize: 10, color: Color(0xff46828f)),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -576,161 +596,144 @@ class _PresenceDot extends StatelessWidget {
   const _PresenceDot({required this.status});
   final String status;
   @override
-  Widget build(BuildContext context) {
-    final color = switch (status) {
-      'BSY' => const Color(0xffdf463a),
-      'AWY' => const Color(0xffdba325),
-      'HDN' => const Color(0xff9ba3a8),
-      _ => const Color(0xff39b730),
-    };
-    return Container(
-      height: 10,
-      width: 10,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: Colors.white, width: 1),
-        boxShadow: const [BoxShadow(color: Color(0x55647888), blurRadius: 1)],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Container(
+    width: 10,
+    height: 10,
+    decoration: BoxDecoration(
+      color: switch (status) {
+        'BSY' => const Color(0xffec4d38),
+        'AWY' => const Color(0xffe5b431),
+        'HDN' => const Color(0xffa5adb5),
+        _ => const Color(0xff46c831),
+      },
+      border: Border.all(color: Colors.white),
+      borderRadius: BorderRadius.circular(2),
+      boxShadow: const [BoxShadow(color: Color(0x660a5779), blurRadius: 2)],
+    ),
+  );
 }
 
-class _ClassicAvatar extends StatelessWidget {
-  const _ClassicAvatar({required this.size});
+class _ClassicLoginAvatar extends StatelessWidget {
+  const _ClassicLoginAvatar({required this.size});
   final double size;
+
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      padding: const EdgeInsets.all(5),
+  Widget build(BuildContext context) => Container(
+    width: size,
+    height: size,
+    padding: const EdgeInsets.all(5),
+    decoration: BoxDecoration(
+      gradient: const LinearGradient(
+        colors: [Color(0xfff6feff), Color(0xff75bbd7), Color(0xff146a93)],
+      ),
+      border: Border.all(color: const Color(0xff477e98), width: 1.3),
+      borderRadius: BorderRadius.circular(10),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x5f164c66),
+          blurRadius: 6,
+          offset: Offset(2, 4),
+        ),
+      ],
+    ),
+    child: Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
         gradient: const LinearGradient(
-          colors: [Color(0xfff7ffff), Color(0xff6cdd3b), Color(0xff17ad29)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          colors: [Color(0xff0b2c43), Color(0xff246b87)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
         ),
-        border: Border.all(color: const Color(0xff219d41), width: 1.5),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x55004b72),
-            blurRadius: 5,
-            offset: Offset(1, 3),
-          ),
-        ],
+        border: Border.all(color: Colors.white, width: 1.5),
+        borderRadius: BorderRadius.circular(7),
       ),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xffffffff), Color(0xffd9edf4), Color(0xff89afc0)],
-          ),
-          borderRadius: BorderRadius.circular(9),
-          border: Border.all(color: const Color(0xffa3bac5), width: 1),
-        ),
-        child: Center(
-          child: Icon(
-            Icons.person,
-            color: const Color(0xffe9f4f9),
-            shadows: const [
-              Shadow(
-                color: Color(0xff31566d),
-                blurRadius: 5,
-                offset: Offset(1, 3),
-              ),
-            ],
-            size: size * 0.67,
-          ),
-        ),
+      child: Icon(
+        Icons.person,
+        color: const Color(0xff94d8ec),
+        size: size * 0.64,
       ),
-    );
-  }
+    ),
+  );
 }
 
 class _PeopleMark extends StatelessWidget {
   const _PeopleMark({required this.size});
   final double size;
   @override
-  Widget build(BuildContext context) {
-    return CustomPaint(size: Size(size, size), painter: _PeoplePainter());
-  }
+  Widget build(BuildContext context) =>
+      CustomPaint(size: Size(size, size), painter: _PeoplePainter());
 }
 
 class _PeoplePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final sx = size.width / 26;
-    final sy = size.height / 26;
-    canvas.scale(sx, sy);
-    canvas.drawCircle(
-      const Offset(16, 8),
-      5,
-      Paint()..color = const Color(0xff56b94f),
-    );
+    canvas.save();
+    canvas.scale(size.width / 26, size.height / 26);
+    final back = Paint()..color = const Color(0xff70c14c);
+    final front = Paint()..color = const Color(0xff289acb);
+    canvas.drawCircle(const Offset(16, 7), 5, back);
     canvas.drawRRect(
-      RRect.fromLTRBR(9, 13, 24, 24, const Radius.circular(6)),
-      Paint()..color = const Color(0xff4cb14f),
+      RRect.fromLTRBR(9, 13, 25, 25, const Radius.circular(5)),
+      back,
     );
-    canvas.drawCircle(
-      const Offset(9, 10),
-      5,
-      Paint()..color = const Color(0xff39a1d5),
-    );
+    canvas.drawCircle(const Offset(9, 10), 5, front);
     canvas.drawRRect(
-      RRect.fromLTRBR(2, 15, 17, 25, const Radius.circular(6)),
-      Paint()..color = const Color(0xff248cbf),
+      RRect.fromLTRBR(1, 15, 17, 26, const Radius.circular(5)),
+      front,
     );
+    canvas.restore();
   }
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-class _AeroBackdrop extends CustomPainter {
+class _WlmHillsPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final bounds = Offset.zero & size;
+    final rect = Offset.zero & size;
     canvas.drawRect(
-      bounds,
+      rect,
       Paint()
         ..shader = const LinearGradient(
+          colors: [Color(0xff74d1e9), Color(0xffaff4f9)],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xffb1effb), Color(0xffdaf7fd), Color(0xfff7fcfd)],
-          stops: [0, 0.55, 1],
-        ).createShader(bounds),
+        ).createShader(rect),
     );
-    final sweep = Path()
-      ..moveTo(0, size.height * 0.30)
+    final landscape = Path()
+      ..moveTo(0, size.height * .86)
       ..cubicTo(
-        size.width * 0.32,
-        size.height * 0.04,
-        size.width * 0.63,
-        size.height * 0.68,
+        size.width * .22,
+        size.height * .47,
+        size.width * .58,
+        size.height * .48,
         size.width,
-        size.height * 0.07,
-      )
-      ..lineTo(size.width, 0)
-      ..lineTo(0, 0)
-      ..close();
-    canvas.drawPath(sweep, Paint()..color = const Color(0x5593e4f5));
-    final gleam = Path()
-      ..moveTo(0, size.height * 0.89)
-      ..cubicTo(
-        size.width * 0.34,
-        size.height * 0.47,
-        size.width * 0.66,
-        size.height * 1.10,
-        size.width,
-        size.height * 0.56,
+        size.height * .82,
       )
       ..lineTo(size.width, size.height)
       ..lineTo(0, size.height)
       ..close();
-    canvas.drawPath(gleam, Paint()..color = const Color(0x66ffffff));
+    canvas.drawPath(landscape, Paint()..color = const Color(0xffa7dd28));
+    final lower = Path()
+      ..moveTo(0, size.height)
+      ..quadraticBezierTo(
+        size.width * .3,
+        size.height * .66,
+        size.width,
+        size.height * .95,
+      )
+      ..lineTo(size.width, size.height)
+      ..close();
+    canvas.drawPath(lower, Paint()..color = const Color(0xff62bd19));
+    for (var i = 0; i < 25; i++) {
+      final x = (size.width * (i + .5) / 25);
+      final y = (size.height * (.79 + .10 * math.sin(i * .7)));
+      canvas.drawCircle(
+        Offset(x, y),
+        i.isEven ? 1.9 : 1.2,
+        Paint()..color = const Color(0xfff5fbff),
+      );
+    }
   }
 
   @override
