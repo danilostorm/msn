@@ -45,6 +45,24 @@ class StormMobileApi {
     await _send('POST', '/api/mobile/avatar', token: token, image: image);
   }
 
+  Future<String> uploadVoice(String token, Uint8List audio) async {
+    if (audio.isEmpty || audio.length > 3 * 1024 * 1024) {
+      throw StateError('Áudio acima de 3 MB.');
+    }
+    final data = await _send(
+      'POST',
+      '/api/mobile/voice',
+      token: token,
+      audio: audio,
+    );
+    final url = data['url'];
+    if (url is! String ||
+        !url.startsWith('https://msn.hoststorm.com.br/api/mobile/voice/')) {
+      throw StateError('Link da mensagem de voz inválido.');
+    }
+    return url;
+  }
+
   Future<void> removeAvatar(String token) async {
     await _send('DELETE', '/api/mobile/avatar', token: token);
   }
@@ -55,6 +73,7 @@ class StormMobileApi {
     Map<String, String>? json,
     String? token,
     Uint8List? image,
+    Uint8List? audio,
   }) async {
     final http = HttpClient();
     http.connectionTimeout = const Duration(seconds: 12);
@@ -72,6 +91,9 @@ class StormMobileApi {
       } else if (image != null) {
         req.headers.contentType = ContentType('image', 'jpeg');
         req.add(image);
+      } else if (audio != null) {
+        req.headers.contentType = ContentType('audio', 'mp4');
+        req.add(audio);
       }
       final response = await req.close().timeout(const Duration(seconds: 20));
       final body = await utf8.decoder
@@ -83,7 +105,7 @@ class StormMobileApi {
           throw StateError('Usuário, e-mail ou senha inválidos.');
         }
         if (response.statusCode == 413) {
-          throw StateError('A imagem excede o limite de 2 MB.');
+          throw StateError('Arquivo acima do limite de tamanho.');
         }
         if (response.statusCode == 429) {
           throw StateError('Muitas tentativas. Aguarde um pouco.');
