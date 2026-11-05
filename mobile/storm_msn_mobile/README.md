@@ -54,3 +54,13 @@ Correções MSNP7: interpretação adequada da lista `LST FL` sem confundir os c
 **Validação pendente:** login com uma conta válida e chat bidirecional num aparelho Android físico. Chamadas de voz/vídeo, envio de arquivos, multiplayer e notificações em segundo plano não foram ativados.
 
 O APK `0.3.0-TESTE` é um build de desenvolvimento e não compartilha necessariamente a assinatura da versão oficial. Ao alternar entre assinaturas, desinstale o aplicativo antigo antes de instalar o novo.
+
+## Atualização 0.4.0 — reconstrução guiada por capturas do WLM 2009
+
+Usa as capturas da tela de login e dos contatos do desktop como referência visual para a versão Android. Entrada com barra de título e menus, faixa turquesa/verde recriada em Flutter, avatar centrado, saudação original, campos abaixo, seleção de presença, botão Entrar e links inferiores. Durante a conexão o mascote azul/verde gira. A arte é independente e não inclui recursos binários da Microsoft. O avatar original do usuário ainda não é sincronizado automaticamente.
+
+Contatos: cabeçalho compacto com gramado, menu clássico e botões conectados, pesquisa, seção de favoritos (organização local da sessão por toque prolongado), grupos reais obtidos de LSG/LST no MSNP7, seções Disponível/Offline e painel de Novidades. A lista agora apresenta aviso destacado e contador de mensagens não lidas, tocáveis para abrir a conversa. Contatos favoritos ainda não são persistidos entre sessões.
+
+Correções: diálogos e avisos do Flutter agora utilizam contexto subordinado ao MaterialApp (anteriormente abriam com erro No MaterialLocalizations found); adição aguarda confirmação real do servidor antes de avisar sucesso. Interpretação de eventos RNG de convite, ANS de resposta, mensagem MSG multipartes, aviso de nova mensagem e sincronização LSG de grupos testados com servidor MSNP7/WebSocket de laboratório.
+
+Limitações: a validação concluída foi com servidor simulado. Ainda é necessário testar com duas contas reais, desktop Windows Live Messenger ↔ Android, para confirmar compatibilidade ponta a ponta com o servidor de produção. Aplicativo em segundo plano, notificações push, áudio/vídeo, avatar remoto e fidelidade visual pixel a pixel ainda são trabalhos pendentes. Nunca compartilhe senhas de usuários nos testes.
