@@ -281,4 +281,6 @@ def register(app,backend):
         getattr(app.router,'add_'+route)(path,handler)
     from .mobile_api import register as register_mobile
     register_mobile(app)
+    from .mobile_audio import register as register_voice_notes
+    register_voice_notes(app)
 
