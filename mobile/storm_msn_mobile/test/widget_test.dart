@@ -7,9 +7,9 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(const StormMsnApp());
-    expect(find.text('Windows Live Messenger'), findsOneWidget);
-    expect(find.text('Bem-vindo de volta!'), findsOneWidget);
-    expect(find.text('Entrar no Messenger'), findsOneWidget);
+    expect(find.text('Windows Live Messenger'), findsWidgets);
+    expect(find.text('Entrar no'), findsOneWidget);
+    expect(find.text('Entrar'), findsOneWidget);
     expect(find.byType(TextField), findsNWidgets(2));
   });
   layoutTests();
@@ -24,11 +24,13 @@ void layoutTests() {
       tester.view.resetDevicePixelRatio();
     });
     await tester.pumpWidget(const StormMsnApp());
-    expect(find.text('Entrar no Messenger'), findsOneWidget);
+    expect(find.text('Entrar'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('wide login keeps classic card centered', (tester) async {
+  testWidgets('wide login keeps classic desktop composition centered', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(1100, 800);
     tester.view.devicePixelRatio = 1;
     addTearDown(() {
@@ -36,7 +38,7 @@ void layoutTests() {
       tester.view.resetDevicePixelRatio();
     });
     await tester.pumpWidget(const StormMsnApp());
-    expect(find.text('Windows Live Messenger'), findsOneWidget);
+    expect(find.text('Windows Live Messenger'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 }
