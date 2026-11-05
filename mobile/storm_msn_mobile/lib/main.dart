@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'msn_protocol.dart';
+import 'classic_login.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,37 +22,71 @@ const _statuses = <String, String>{
 };
 
 class StormMsnApp extends StatefulWidget {
-  const StormMsnApp({super.key});
+  const StormMsnApp({super.key, this.session});
+  final MsnClient? session;
   @override
   State<StormMsnApp> createState() => _StormMsnAppState();
 }
 
 class _StormMsnAppState extends State<StormMsnApp> {
-  final client = MsnClient();
+  late final MsnClient client = widget.session ?? MsnClient();
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _search = TextEditingController();
   String? selected;
   bool _showPassword = false;
+  bool _rememberEmail = false;
+  static const _preferences = MethodChannel(
+    'cloud.hoststorm.storm_msn_mobile/preferences',
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRememberedEmail();
+  }
+
+  Future<void> _loadRememberedEmail() async {
+    try {
+      final value = await _preferences.invokeMethod<String>('loadEmail');
+      if (mounted && value != null && value.isNotEmpty) {
+        setState(() {
+          _rememberEmail = true;
+          _email.text = value;
+        });
+      }
+    } catch (_) {
+      // Flutter widget tests and non-Android platforms omit this channel.
+    }
+  }
+
+  Future<void> _storeRememberedEmail(String address) async {
+    try {
+      await _preferences.invokeMethod<void>('saveEmail', <String, String>{
+        'email': _rememberEmail ? address : '',
+      });
+    } catch (_) {
+      // Login must still succeed when preference storage is unavailable.
+    }
+  }
 
   @override
   void dispose() {
     _email.dispose();
     _password.dispose();
     _search.dispose();
-    client.dispose();
+    if (widget.session == null) client.dispose();
     super.dispose();
   }
 
   Future<void> _enter() async {
     final address = _email.text.trim();
     final pass = _password.text;
-    _password.clear();
     await client.signIn(address, pass);
     if (mounted && client.online) {
-      setState(() {
-        selected = null;
-      });
+      _password.clear();
+      await _storeRememberedEmail(address);
+      if (mounted) setState(() => selected = null);
     }
   }
 
@@ -157,192 +192,21 @@ class _StormMsnAppState extends State<StormMsnApp> {
   }
 
   Widget _loginView(BuildContext context) {
-    return LayoutBuilder(
-      builder: (ctx, constraints) {
-        final narrow = constraints.maxWidth < 430;
-        final max = constraints.maxWidth > 600 ? 455.0 : constraints.maxWidth;
-        return Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xfffafdff), Color(0xffdff3fb), Color(0xffbce4f5)],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-            ),
-          ),
-          child: Center(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.symmetric(
-                horizontal: narrow ? 16 : 24,
-                vertical: 24,
-              ),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: max),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(13),
-                    border: Border.all(color: const Color(0xffabcfe2)),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x22005388),
-                        blurRadius: 25,
-                        offset: Offset(0, 12),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const _ClassicBrand(
-                        title: 'Windows Live Messenger',
-                        subtitle: 'Storm MSN • Edição mobile',
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(22, 25, 22, 22),
-                        child: Column(
-                          children: [
-                            const _MsnAvatar(
-                              size: 92,
-                              online: true,
-                              login: false,
-                            ),
-                            const SizedBox(height: 14),
-                            const Text(
-                              'Bem-vindo de volta!',
-                              style: TextStyle(
-                                fontSize: 23,
-                                color: Color(0xff2780af),
-                                fontWeight: FontWeight.w400,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              'Entre com a sua conta do Storm MSN',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Color(0xff7290a1),
-                              ),
-                            ),
-                            const SizedBox(height: 30),
-                            TextField(
-                              controller: _email,
-                              keyboardType: TextInputType.emailAddress,
-                              autofillHints: const [AutofillHints.username],
-                              decoration: const InputDecoration(
-                                prefixIcon: Icon(
-                                  Icons.alternate_email,
-                                  color: Color(0xff4897bd),
-                                ),
-                                hintText: 'Endereço de e-mail',
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            TextField(
-                              controller: _password,
-                              obscureText: !_showPassword,
-                              enableSuggestions: false,
-                              autocorrect: false,
-                              onSubmitted: (_) => _enter(),
-                              autofillHints: const [AutofillHints.password],
-                              decoration: InputDecoration(
-                                hintText: 'Senha',
-                                prefixIcon: const Icon(
-                                  Icons.lock_outline,
-                                  color: Color(0xff4897bd),
-                                ),
-                                suffixIcon: IconButton(
-                                  onPressed: () => setState(
-                                    () => _showPassword = !_showPassword,
-                                  ),
-                                  icon: Icon(
-                                    _showPassword
-                                        ? Icons.visibility_off_outlined
-                                        : Icons.visibility_outlined,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            if (client.error != null) ...[
-                              const SizedBox(height: 12),
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xffffedf0),
-                                  borderRadius: BorderRadius.circular(7),
-                                  border: Border.all(
-                                    color: const Color(0xfff0b4bc),
-                                  ),
-                                ),
-                                child: Text(
-                                  client.error!,
-                                  style: const TextStyle(
-                                    color: Color(0xffa4273a),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            ],
-                            const SizedBox(height: 22),
-                            SizedBox(
-                              width: double.infinity,
-                              height: 48,
-                              child: ElevatedButton(
-                                onPressed: client.connecting ? null : _enter,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xff159cc9),
-                                  foregroundColor: Colors.white,
-                                  elevation: 1,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(9),
-                                  ),
-                                ),
-                                child: client.connecting
-                                    ? const SizedBox(
-                                        height: 22,
-                                        width: 22,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : const Text(
-                                        'Entrar no Messenger',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                              ),
-                            ),
-                            const SizedBox(height: 15),
-                            TextButton(
-                              onPressed: () => _openExternal(
-                                'https://msn.hoststorm.com.br/registrar',
-                              ),
-                              child: const Text(
-                                'Não possui uma conta? Cadastre-se',
-                              ),
-                            ),
-                            const Divider(height: 27),
-                            const Text(
-                              'Conexão protegida por WSS. Use uma senha exclusiva para o Storm MSN.\n'
-                              'Aplicativo independente, não afiliado à Microsoft.',
-                              style: TextStyle(
-                                color: Color(0xff778d9d),
-                                fontSize: 11,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
+    return ClassicLogin(
+      email: _email,
+      password: _password,
+      connecting: client.connecting,
+      error: client.error,
+      status: client.status,
+      onStatus: client.setStatus,
+      onLogin: _enter,
+      onRegister: () => _openExternal('https://msn.hoststorm.com.br/registrar'),
+      showPassword: _showPassword,
+      onShowPassword: () => setState(() => _showPassword = !_showPassword),
+      rememberEmail: _rememberEmail,
+      onRememberEmail: (value) {
+        setState(() => _rememberEmail = value);
+        if (!value) _storeRememberedEmail('');
       },
     );
   }
@@ -426,6 +290,13 @@ class _StormMsnAppState extends State<StormMsnApp> {
           const _ClassicBrand(
             title: 'Windows Live Messenger',
             subtitle: 'Storm MSN Mobile',
+          ),
+          _ClassicMenuBar(
+            onAddContact: _addContact,
+            onGames: () => _openExternal(
+              'https://msn.hoststorm.com.br/AppDirectory/Directory.aspx',
+            ),
+            onLogout: _logout,
           ),
           _personalBar(),
           Container(
@@ -544,7 +415,7 @@ class _StormMsnAppState extends State<StormMsnApp> {
                   ),
                 if (active.isNotEmpty) ...[
                   _group(
-                    'Conectados',
+                    'Contatos online',
                     active.length,
                     Icons.people_alt_outlined,
                   ),
@@ -552,7 +423,7 @@ class _StormMsnAppState extends State<StormMsnApp> {
                 ],
                 if (inactive.isNotEmpty) ...[
                   _group(
-                    'Desconectados',
+                    'Contatos offline',
                     inactive.length,
                     Icons.people_outline,
                   ),
@@ -618,10 +489,10 @@ class _StormMsnAppState extends State<StormMsnApp> {
         children: [
           const Positioned.fill(child: CustomPaint(painter: _MsnWavePainter())),
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 16, 12, 12),
+            padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
             child: Row(
               children: [
-                const _MsnAvatar(size: 72, online: true, login: false),
+                const _MsnAvatar(size: 63, online: true, login: false),
                 const SizedBox(width: 13),
                 Expanded(
                   child: Column(
@@ -762,7 +633,13 @@ class _StormMsnAppState extends State<StormMsnApp> {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: Color(0xffaac9da), size: 20),
+            Icon(
+              Icons.circle,
+              size: 9,
+              color: buddy.online
+                  ? const Color(0xff49b528)
+                  : const Color(0xffbbc7cd),
+            ),
           ],
         ),
       ),
@@ -849,7 +726,7 @@ class _ConversationPanelState extends State<_ConversationPanel> {
           subtitle: 'Conversa • Storm MSN',
         ),
         Container(
-          height: 95,
+          height: 78,
           decoration: const BoxDecoration(
             gradient: LinearGradient(
               colors: [Color(0xffb9e9fc), Color(0xffeafaff)],
@@ -864,7 +741,7 @@ class _ConversationPanelState extends State<_ConversationPanel> {
                   icon: const Icon(Icons.arrow_back, color: _dark),
                 ),
               const SizedBox(width: 10),
-              _MsnAvatar(size: 56, online: widget.who.online, login: false),
+              _MsnAvatar(size: 53, online: widget.who.online, login: false),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -908,42 +785,42 @@ class _ConversationPanelState extends State<_ConversationPanel> {
           height: 48,
           decoration: const BoxDecoration(
             gradient: LinearGradient(
-              colors: [Color(0xffe5f8fd), Color(0xffd4edf8)],
+              colors: [Color(0xffe8f7fc), Color(0xffcfeaf7)],
             ),
-            border: Border(bottom: BorderSide(color: Color(0xffc5dfed))),
+            border: Border(bottom: BorderSide(color: Color(0xffb7d6e6))),
           ),
           child: ListView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 6),
             children: [
-              _IconTool(
-                icon: Icons.videocam_outlined,
-                label: 'Webcam (em breve)',
-                onTap: () => widget.onUnavailable('Webcam'),
+              _ClassicConversationTool(
+                icon: Icons.photo_outlined,
+                label: 'Fotos',
+                onTap: () => widget.onUnavailable('Compartilhar fotos'),
               ),
-              _IconTool(
+              _ClassicConversationTool(
+                icon: Icons.folder_shared_outlined,
+                label: 'Arquivos',
+                onTap: () => widget.onUnavailable('Envio de arquivos'),
+              ),
+              _ClassicConversationTool(
+                icon: Icons.videocam_outlined,
+                label: 'Vídeo',
+                onTap: () => widget.onUnavailable('Videochamada'),
+              ),
+              _ClassicConversationTool(
                 icon: Icons.phone_outlined,
-                label: 'Chamada (em breve)',
+                label: 'Chamar',
                 onTap: () => widget.onUnavailable('Chamada de voz'),
               ),
-              _IconTool(
-                icon: Icons.videogame_asset_outlined,
-                label: 'Jogos SNES no PlayStor',
+              _ClassicConversationTool(
+                icon: Icons.sports_esports_outlined,
+                label: 'Jogos',
                 onTap: widget.onGames,
               ),
-              _IconTool(
+              _ClassicConversationTool(
                 icon: Icons.emoji_emotions_outlined,
                 label: 'Emoticons',
-                onTap: () {
-                  text.text += ' 😊';
-                  text.selection = TextSelection.collapsed(
-                    offset: text.text.length,
-                  );
-                },
-              ),
-              _IconTool(
-                icon: Icons.sentiment_very_satisfied_outlined,
-                label: 'Enviar sorriso',
                 onTap: () {
                   text.text += ' :)';
                   text.selection = TextSelection.collapsed(
@@ -1104,6 +981,39 @@ class _ConversationPanelState extends State<_ConversationPanel> {
   }
 }
 
+class _ClassicConversationTool extends StatelessWidget {
+  const _ClassicConversationTool({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: label,
+    child: InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 7),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: const Color(0xff398eb1)),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 11, color: Color(0xff476277)),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 class _IconTool extends StatelessWidget {
   const _IconTool({
     required this.icon,
@@ -1128,62 +1038,103 @@ class _IconTool extends StatelessWidget {
   );
 }
 
+class _ClassicMenuBar extends StatelessWidget {
+  const _ClassicMenuBar({
+    required this.onAddContact,
+    required this.onGames,
+    required this.onLogout,
+  });
+  final VoidCallback onAddContact, onGames, onLogout;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 34,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xfffefefe), Color(0xffeaf3f8)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+        border: Border(bottom: BorderSide(color: Color(0xffbad8e5))),
+      ),
+      child: Row(
+        children: [
+          _ClassicMenuItem(label: 'Contatos', onTap: onAddContact),
+          _ClassicMenuItem(label: 'Jogos', onTap: onGames),
+          _ClassicMenuItem(label: 'Sair', onTap: onLogout),
+          const Spacer(),
+          const Padding(
+            padding: EdgeInsets.only(right: 11),
+            child: Icon(
+              Icons.keyboard_arrow_down,
+              color: Color(0xff92b1c2),
+              size: 16,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ClassicMenuItem extends StatelessWidget {
+  const _ClassicMenuItem({required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 12, color: Color(0xff3c6275)),
+      ),
+    ),
+  );
+}
+
 class _ClassicBrand extends StatelessWidget {
   const _ClassicBrand({required this.title, required this.subtitle});
   final String title, subtitle;
+
   @override
   Widget build(BuildContext context) => Container(
-    height: 58,
-    padding: const EdgeInsets.symmetric(horizontal: 13),
+    height: 34,
+    padding: const EdgeInsets.symmetric(horizontal: 10),
     decoration: const BoxDecoration(
       gradient: LinearGradient(
-        colors: [Color(0xff157bad), Color(0xff34b2e5), Color(0xff78d7ed)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
+        colors: [Color(0xffbde9f9), Color(0xffa4d9ec), Color(0xff78b7d6)],
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
       ),
-      boxShadow: [
-        BoxShadow(
-          color: Color(0x18035d8b),
-          blurRadius: 4,
-          offset: Offset(0, 2),
-        ),
-      ],
+      border: Border(bottom: BorderSide(color: Color(0xff6398b3))),
     ),
     child: Row(
       children: [
         const Icon(
           Icons.people_alt_rounded,
-          color: Color(0xfff7fffe),
-          size: 28,
+          color: Color(0xff348eb2),
+          size: 18,
         ),
-        const SizedBox(width: 9),
+        const SizedBox(width: 7),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                title,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              Text(
-                subtitle,
-                style: const TextStyle(
-                  color: Color(0xffe4f8fe),
-                  fontSize: 10.5,
-                ),
-              ),
-            ],
+          child: Text(
+            title,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Color(0xff23475e),
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
-        const Icon(Icons.minimize_rounded, color: Colors.white70, size: 18),
-        const SizedBox(width: 7),
-        const Icon(Icons.close_rounded, color: Colors.white70, size: 18),
+        Text(
+          subtitle,
+          style: const TextStyle(fontSize: 10, color: Color(0xff356e8c)),
+          overflow: TextOverflow.ellipsis,
+        ),
       ],
     ),
   );
