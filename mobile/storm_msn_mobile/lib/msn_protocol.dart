@@ -14,6 +14,7 @@ class MsnBuddy {
   final String email;
   String title;
   String presence;
+  List<String> groupIds = const [];
   bool get online => !{'FLN', 'HDN'}.contains(presence);
 }
 
@@ -39,7 +40,16 @@ class MsnClient extends ChangeNotifier {
   bool connecting = false;
   bool online = false;
   final buddies = <String, MsnBuddy>{};
+  final groups = <String, String>{};
   final messages = <String, List<MsnMessage>>{};
+  final unread = <String, int>{};
+  String? recentIncoming;
+  void markRead(String peer) {
+    unread.remove(peer.toLowerCase());
+    if (recentIncoming == peer.toLowerCase()) recentIncoming = null;
+    notifyListeners();
+  }
+
   List<MsnMessage> history(String who) =>
       messages[who.toLowerCase()] ?? <MsnMessage>[];
   final _switchboards = <String, MsnWire>{};
@@ -74,6 +84,9 @@ class MsnClient extends ChangeNotifier {
     connecting = true;
     _quitting = false;
     buddies.clear();
+    groups.clear();
+    unread.clear();
+    recentIncoming = null;
     notifyListeners();
     try {
       if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email) ||
@@ -134,6 +147,13 @@ class MsnClient extends ChangeNotifier {
     final w = packet.words;
     if (w.isEmpty) return;
     switch (packet.cmd) {
+      // MSNP7 LSG trid serverVersion index count groupId groupName 0
+      case 'LSG':
+        if (w.length >= 7 && w[5] != '0') {
+          groups[w[5]] = Uri.decodeComponent(w[6]);
+          notifyListeners();
+        }
+        break;
       // MSNP7 LST: LST trid FL serverVersion index count email nickname groups
       // AL/BL/RL are permission lists, not additional contacts.
       case 'LST':
@@ -143,13 +163,17 @@ class MsnClient extends ChangeNotifier {
           final title = rawName.contains('@') || rawName.isEmpty
               ? addr
               : Uri.decodeComponent(rawName);
-          buddies.putIfAbsent(addr, () => MsnBuddy(addr, title: title)).title =
-              title;
+          final buddy = buddies.putIfAbsent(
+            addr,
+            () => MsnBuddy(addr, title: title),
+          );
+          buddy.title = title;
+          buddy.groupIds = w.length >= 9 ? w[8].split(',') : const [];
           notifyListeners();
         }
         break;
       case 'ADD':
-        if (w.length > 4 && w[4].contains('@')) {
+        if (w.length > 4 && w[2] == 'FL' && w[4].contains('@')) {
           final addr = w[4].toLowerCase();
           buddies.putIfAbsent(addr, () => MsnBuddy(addr));
           notifyListeners();
@@ -188,8 +212,12 @@ class MsnClient extends ChangeNotifier {
         }
         break;
       case 'RNG':
-        if (w.length > 5) {
-          _joinIncoming(w[5].toLowerCase(), w[1], w[4]);
+        // RNG sessid host CKI token inviterEmail inviterName
+        if (w.length >= 6 && w[3] == 'CKI' && w[5].contains('@')) {
+          final inviter = w[5].toLowerCase();
+          buddies.putIfAbsent(inviter, () => MsnBuddy(inviter));
+          _joinIncoming(inviter, w[1], w[4]);
+          notifyListeners();
         }
         break;
       default:
@@ -245,7 +273,14 @@ class MsnClient extends ChangeNotifier {
           .toLowerCase();
       if (!headers.contains('text/plain')) return;
       final text = utf8.decode(bytes.sublist(start), allowMalformed: true);
-      (messages[peer] ??= []).add(MsnMessage(peer, text));
+      final sender = p.words.length > 1 && p.words[1].contains('@')
+          ? p.words[1].toLowerCase()
+          : peer;
+      if (text.isEmpty) return;
+      buddies.putIfAbsent(sender, () => MsnBuddy(sender));
+      (messages[sender] ??= []).add(MsnMessage(sender, text));
+      unread[sender] = (unread[sender] ?? 0) + 1;
+      recentIncoming = sender;
       notifyListeners();
     } else if (p.cmd == 'BYE') {
       _switchboards.remove(peer);
@@ -305,16 +340,38 @@ class MsnClient extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addContact(String address) {
-    if (!online || _notification == null) return;
+  Future<void> addContact(String address) async {
+    if (!online || _notification == null) {
+      throw StateError('Entre no Messenger antes de adicionar contatos.');
+    }
     final addr = address.trim().toLowerCase();
-    if (!addr.contains('@') || addr.contains(' ')) return;
-    _notification!.send(
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(addr)) {
+      throw StateError('Informe um endereço de e-mail válido.');
+    }
+    if (addr == email) {
+      throw StateError('Não é possível adicionar você mesmo.');
+    }
+    if (buddies.containsKey(addr)) {
+      throw StateError('Esse contato já está na sua lista.');
+    }
+    final ns = _notification!;
+    final response = await ns.request(
       'ADD ' + (++_tx).toString() + ' FL ' + addr + ' ' + addr,
+      'ADD',
     );
-    _notification!.send(
-      'ADD ' + (++_tx).toString() + ' AL ' + addr + ' ' + addr,
-    );
+    if (response.words.length < 5 ||
+        response.words[2] != 'FL' ||
+        response.words[4].toLowerCase() != addr) {
+      throw StateError('O servidor não confirmou a inclusão do contato.');
+    }
+    try {
+      await ns.request(
+        'ADD ' + (++_tx).toString() + ' AL ' + addr + ' ' + addr,
+        'ADD',
+      );
+    } catch (_) {
+      // O contato já foi incluído na lista principal FL.
+    }
     buddies.putIfAbsent(addr, () => MsnBuddy(addr));
     notifyListeners();
   }
@@ -331,7 +388,10 @@ class MsnClient extends ChangeNotifier {
     online = false;
     connecting = false;
     buddies.clear();
+    groups.clear();
     messages.clear();
+    unread.clear();
+    recentIncoming = null;
     _pending.clear();
     _calls.clear();
     notifyListeners();
