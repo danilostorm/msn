@@ -166,3 +166,27 @@ Pro. OpenWA é um gateway para WhatsApp, não um substituto do protocolo MSN.
 - Validação do modo em segundo plano, microfone e player num aparelho Android
   real com conta de teste; testes unitários/compilação não são garantia de
   entrega de mensagens após encerramento forçado.
+
+### Release oficial v0.6.0 — auditoria da compilação (05/11/2026)
+
+- Código Android: `cloud.hoststorm.storm_msn_mobile`, versionCode 6,
+  versionName 0.6.0; minSdk 24 e targetSdk 36.
+- Etapas: Flutter/Gradle Android compilados sem erro com NDK 28.2.13676358,
+  SDK 34/35, CMake 3.22.1. Cache das ferramentas nativas preservado.
+- Assinatura: release externa por `apksigner` com keystore oficial já existente
+  no host. A senha não é exportada, não está no repositório e não aparece nos
+  logs; a ferramenta a lê diretamente do arquivo de credenciais protegido.
+- Certificado SHA-256 da release:
+  `376262a5c131986323b359caddd8ba9eb68d6f3f9a1ff89635ae13aed86c25d4`.
+  Idêntico à versão oficial 0.5.0, portanto atualização compatível.
+- APK distribuído: `StormMSN-Mobile-v0.6.0-arm64-RELEASE.apk`,
+  29.234.252 bytes,
+  SHA-256 `6fbaf6882e9a31be0130fcfa9dfd85ea45a4e98c734db1291fe5490b3b2a48c4`.
+- URL pública: `https://playstor.hoststorm.cloud/downloads/StormMSN-Mobile-v0.6.0-arm64-RELEASE.apk`.
+  Responde HTTP 200 e o SHA-256 do arquivo integral coincide com a origem.
+- Para build externo, o Gradle permite exclusivamente com variável
+  `STORM_MSN_EXTERNAL_SIGNING=1` gerar APK **não assinado** e transferi-lo
+  para o passo seguro de assinatura. O fluxo padrão de release continua
+  exigindo as credenciais oficiais. Nunca publicar um APK não assinado.
+- Testes unitários Flutter: 11 aprovados antes do build nativo. Não houve
+  testes completos com dispositivo Android real nesta sessão.
