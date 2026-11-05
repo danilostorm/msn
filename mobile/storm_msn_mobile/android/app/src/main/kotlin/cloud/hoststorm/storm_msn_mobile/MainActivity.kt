@@ -11,6 +11,20 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
+            "cloud.hoststorm.storm_msn_mobile/preferences"
+        ).setMethodCallHandler { call, result ->
+            val prefs = getSharedPreferences("storm_msn_mobile", MODE_PRIVATE)
+            when (call.method) {
+                "loadEmail" -> result.success(prefs.getString("email", null))
+                "saveEmail" -> {
+                    prefs.edit().putString("email", call.argument<String>("email") ?: "").apply()
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
             "cloud.hoststorm.storm_msn_mobile/navigation"
         ).setMethodCallHandler { call, result ->
             if (call.method != "openBrowser") {
