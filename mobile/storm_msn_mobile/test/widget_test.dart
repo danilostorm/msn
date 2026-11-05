@@ -8,7 +8,7 @@ void main() {
   ) async {
     await tester.pumpWidget(const StormMsnApp());
     expect(find.text('Windows Live Messenger'), findsWidgets);
-    expect(find.text('Entrar no'), findsOneWidget);
+    expect(find.text('Bem-vindo novamente!'), findsOneWidget);
     expect(find.text('Entrar'), findsOneWidget);
     expect(find.byType(TextField), findsNWidgets(2));
   });
