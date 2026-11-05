@@ -42,3 +42,15 @@ O protocolo atual pressupõe sessão em primeiro plano; se houver failover e per
 
 As cores, ilustrações e ícones foram criados para o Storm MSN. O projeto é independente da Microsoft.
 
+
+## Atualização 0.3.0 — estudo do WLM 2009 no Nexus
+
+A pesquisa dos recursos do `msgsres.dll` identificou os layouts binários originais da interface: `4010/947` (login), `4010/923` (contatos), `4010/920` (conversa) e `4010/44901`/`44902` (linhas de contatos). A análise foi feita no Nexus usando Ghidra 12.1.4 e REA 6.8.0; os componentes Microsoft não são distribuídos no APK.
+
+Principais mudanças de interface: faixa Aero e título do WLM, avatar à esquerda dos campos em celulares compatíveis, ações Entrar/Cancelar, seleção de presença, opção de lembrar apenas o ID, barra e menus clássicos de contatos e ações com texto na conversa. Recuperação automática de senha ainda não existe, portanto o botão explica a limitação em vez de redirecionar para outro serviço.
+
+Correções MSNP7: interpretação adequada da lista `LST FL` sem confundir os contadores e sem inserir permissões `AL`/`BL` como contatos; presença `NLN`/`ILN` e erros numéricos do servidor. Os testes usam um WebSocket local com conta de demonstração e cobrem login, sincronização, presença, contato e abertura da conversa. O teste opcional `live_wss_test.dart` confirma apenas a resposta a login inválido no WSS público.
+
+**Validação pendente:** login com uma conta válida e chat bidirecional num aparelho Android físico. Chamadas de voz/vídeo, envio de arquivos, multiplayer e notificações em segundo plano não foram ativados.
+
+O APK `0.3.0-TESTE` é um build de desenvolvimento e não compartilha necessariamente a assinatura da versão oficial. Ao alternar entre assinaturas, desinstale o aplicativo antigo antes de instalar o novo.
