@@ -100,3 +100,8 @@ Cadastro de testes habilitado via MSN_PUBLIC_SIGNUP=1. Protecoes: CSRF, honeypot
 ## Storm MSN × PlayStor — catálogo SNES (05/11/2026)
 
 A fase inicial do catálogo SNES do PlayStor está implantada em `https://msn.hoststorm.com.br/AppDirectory/Directory.aspx`. A configuração `GamesBrowserURL` do WLM 2009 aponta para esse endereço. Há 230 registros SNES, capas, pesquisa e links que abrem o jogo no PlayStor (com login, em navegador moderno). O catálogo funciona por Cloudflare/Oracle sem mexer no login nem nas bases SQLite do MSN. **O botão Jogos no cliente Windows real e o multiplayer nativo ainda precisam de validação; o serviço SOAP é experimental.** Detalhes, configuração, testes e limites em [integrations/playstor-snes/README.md](integrations/playstor-snes/README.md).
+
+
+## Storm MSN Mobile — APK Android (05/11/2026)
+
+Nova prévia Android v0.1.0 inspirada no Windows Live Messenger 2009, com interface adaptável, protocolo MSNP7 sobre WSS, contatos, presença, chat e catálogo SNES do PlayStor. Código e instruções em [mobile/storm_msn_mobile](mobile/storm_msn_mobile). APK ARM64 assinado: [baixar StormMSN-Mobile-v0.1.0-arm64.apk](https://playstor.hoststorm.cloud/downloads/StormMSN-Mobile-v0.1.0-arm64.apk). O login real e as conversas precisam ser confirmados no Android; não inclui chamadas, webcam ou jogos dentro do app.

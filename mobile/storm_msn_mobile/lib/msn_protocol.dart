@@ -1,0 +1,407 @@
+import 'dart:async';
+import 'dart:collection';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
+
+const stormMsnServer = 'msn.hoststorm.com.br';
+
+class MsnBuddy {
+  MsnBuddy(this.email, {String? title, this.presence = 'FLN'})
+    : title = title == null || title.isEmpty ? email : title;
+  final String email;
+  String title;
+  String presence;
+  bool get online => !{'FLN', 'HDN'}.contains(presence);
+}
+
+class MsnMessage {
+  MsnMessage(this.sender, this.text, {this.mine = false})
+    : when = DateTime.now();
+  final String sender;
+  final String text;
+  final bool mine;
+  final DateTime when;
+}
+
+class MsnClient extends ChangeNotifier {
+  String email = '';
+  String status = 'NLN';
+  String? error;
+  bool connecting = false;
+  bool online = false;
+  final buddies = <String, MsnBuddy>{};
+  final messages = <String, List<MsnMessage>>{};
+  List<MsnMessage> history(String who) =>
+      messages[who.toLowerCase()] ?? <MsnMessage>[];
+  final _switchboards = <String, MsnWire>{};
+  final _pending = <String, List<String>>{};
+  final _calls = Queue<String>();
+  MsnWire? _notification;
+  bool _quitting = false;
+  int _tx = 10;
+
+  Future<MsnWire> _open(int port, void Function(MsnFrame) onFrame) async {
+    final ws = await WebSocket.connect(
+      'wss://' + stormMsnServer + '/ws/' + port.toString(),
+      compression: CompressionOptions.compressionOff,
+    ).timeout(const Duration(seconds: 16));
+    return MsnWire(
+      ws,
+      onFrame,
+      onClose: () {
+        if (port == 1863 && online && !_quitting) {
+          online = false;
+          error = 'Conexão com o servidor perdida. Entre novamente.';
+          notifyListeners();
+        }
+      },
+    );
+  }
+
+  Future<void> signIn(String address, String password) async {
+    if (connecting || online) return;
+    email = address.trim().toLowerCase();
+    error = null;
+    connecting = true;
+    _quitting = false;
+    notifyListeners();
+    try {
+      if (!email.contains('@') || password.isEmpty) {
+        throw StateError('Informe e-mail e senha.');
+      }
+      final ns = await _open(1863, _onNotification);
+      _notification = ns;
+      final ver = await ns.request('VER 1 MSNP7 CVR0', 'VER');
+      if (ver.words.length < 3 || ver.words[2] != 'MSNP7') {
+        throw StateError('Servidor não aceitou MSNP7.');
+      }
+      await ns.request('INF 2', 'INF');
+      final challenge = await ns.request('USR 3 MD5 I ' + email, 'USR');
+      if (challenge.words.length < 5) {
+        throw StateError('Desafio de autenticação inválido.');
+      }
+      final salt = challenge.words[4];
+      final proof = md5.convert(utf8.encode(salt + password)).toString();
+      final auth = await ns.request('USR 4 MD5 S ' + proof, 'USR');
+      if (auth.words.length < 3 || auth.words[2] != 'OK') {
+        throw StateError('Usuário ou senha inválidos.');
+      }
+      await ns.request('SYN 5 0', 'SYN');
+      await ns.request('CHG 6 ' + status, 'CHG');
+      online = true;
+      connecting = false;
+      notifyListeners();
+    } catch (e) {
+      error = readableError(e);
+      online = false;
+      connecting = false;
+      notifyListeners();
+      await _notification?.close();
+      _notification = null;
+    }
+  }
+
+  String readableError(Object e) {
+    final s = e.toString();
+    if (s.contains('TimeoutException')) {
+      return 'O MSN não respondeu. Verifique sua conexão.';
+    }
+    if (s.contains('WebSocketException')) {
+      return 'Falha de conexão segura com o Storm MSN.';
+    }
+    return s.replaceFirst('Bad state: ', '');
+  }
+
+  void _onNotification(MsnFrame packet) {
+    final w = packet.words;
+    if (w.isEmpty) return;
+    switch (packet.cmd) {
+      case 'LST':
+        if (w.length > 4) {
+          final addr = w.firstWhere((x) => x.contains('@'), orElse: () => '');
+          if (addr.isNotEmpty) {
+            final key = addr.toLowerCase();
+            final title = w.length > 5 && !w[5].contains('@')
+                ? Uri.decodeComponent(w[5])
+                : key;
+            buddies.putIfAbsent(key, () => MsnBuddy(key, title: title)).title =
+                title;
+            notifyListeners();
+          }
+        }
+        break;
+      case 'ADD':
+        if (w.length > 4 && w[4].contains('@')) {
+          final addr = w[4].toLowerCase();
+          buddies.putIfAbsent(addr, () => MsnBuddy(addr));
+          notifyListeners();
+        }
+        break;
+      case 'NLN':
+      case 'ILN':
+        final addr = w
+            .firstWhere((x) => x.contains('@'), orElse: () => '')
+            .toLowerCase();
+        if (addr.isNotEmpty) {
+          final b = buddies.putIfAbsent(addr, () => MsnBuddy(addr));
+          b.presence = w.length > 1 ? w[1] : 'NLN';
+          notifyListeners();
+        }
+        break;
+      case 'FLN':
+        if (w.length > 1) {
+          final b = buddies[w[1].toLowerCase()];
+          if (b != null) {
+            b.presence = 'FLN';
+            notifyListeners();
+          }
+        }
+        break;
+      case 'XFR':
+        if (w.length > 5 && w[2] == 'SB' && _calls.isNotEmpty) {
+          _joinOutgoing(_calls.removeFirst(), w[5]);
+        }
+        break;
+      case 'RNG':
+        if (w.length > 5) {
+          _joinIncoming(w[5].toLowerCase(), w[1], w[4]);
+        }
+        break;
+      default:
+        break;
+    }
+  }
+
+  Future<void> _joinOutgoing(String peer, String token) async {
+    try {
+      late MsnWire sb;
+      sb = await _open(1864, (p) => _onSwitchboard(peer, sb, p));
+      _switchboards[peer] = sb;
+      await sb.request('USR 1 ' + email + ' ' + token, 'USR');
+      await sb.request('CAL 2 ' + peer, 'CAL');
+    } catch (e) {
+      _pending.remove(peer);
+      error = 'Conversa indisponível: ' + readableError(e);
+      notifyListeners();
+    }
+  }
+
+  Future<void> _joinIncoming(String peer, String id, String token) async {
+    try {
+      late MsnWire sb;
+      sb = await _open(1864, (p) => _onSwitchboard(peer, sb, p));
+      _switchboards[peer] = sb;
+      await sb.request('ANS 1 ' + email + ' ' + token + ' ' + id, 'ANS');
+      await _flush(peer);
+    } catch (e) {
+      error = 'Não foi possível receber conversa: ' + readableError(e);
+      notifyListeners();
+    }
+  }
+
+  void _onSwitchboard(String peer, MsnWire sb, MsnFrame p) {
+    if (p.cmd == 'JOI') {
+      _flush(peer);
+    } else if (p.cmd == 'MSG') {
+      final bytes = p.payload;
+      var start = -1;
+      for (var i = 0; i + 3 < bytes.length; i++) {
+        if (bytes[i] == 13 &&
+            bytes[i + 1] == 10 &&
+            bytes[i + 2] == 13 &&
+            bytes[i + 3] == 10) {
+          start = i + 4;
+          break;
+        }
+      }
+      if (start < 0) return;
+      final headers = utf8
+          .decode(bytes.sublist(0, start), allowMalformed: true)
+          .toLowerCase();
+      if (!headers.contains('text/plain')) return;
+      final text = utf8.decode(bytes.sublist(start), allowMalformed: true);
+      (messages[peer] ??= []).add(MsnMessage(peer, text));
+      notifyListeners();
+    } else if (p.cmd == 'BYE') {
+      _switchboards.remove(peer);
+      sb.close();
+    }
+  }
+
+  Future<void> _flush(String peer) async {
+    final queued = _pending.remove(peer) ?? [];
+    for (final line in queued) {
+      await _sendToSwitch(peer, line);
+    }
+  }
+
+  Future<void> _sendToSwitch(String peer, String text) async {
+    final sb = _switchboards[peer];
+    if (sb == null) return;
+    final data = utf8.encode(
+      'MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n' +
+          text,
+    );
+    if (data.length > 1664) throw StateError('Mensagem acima do limite MSNP7.');
+    sb.send('MSG ' + (++_tx).toString() + ' A ' + data.length.toString(), data);
+  }
+
+  Future<void> sendMessage(String peer, String text) async {
+    final to = peer.toLowerCase();
+    final msg = text.trim();
+    if (!online || _notification == null)
+      throw StateError('Entre no MSN antes de enviar.');
+    if (msg.isEmpty) return;
+    final data = utf8.encode(
+      'MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n' +
+          msg,
+    );
+    if (data.length > 1664)
+      throw StateError('Mensagem muito longa para o MSN.');
+    (messages[to] ??= []).add(MsnMessage(email, msg, mine: true));
+    notifyListeners();
+    if (_switchboards.containsKey(to)) {
+      await _sendToSwitch(to, msg);
+      return;
+    }
+    (_pending[to] ??= []).add(msg);
+    if (!_calls.contains(to)) {
+      _calls.add(to);
+      _notification!.send('XFR ' + (++_tx).toString() + ' SB');
+    }
+  }
+
+  void setStatus(String newStatus) {
+    if (!{'NLN', 'BSY', 'AWY', 'HDN'}.contains(newStatus)) return;
+    status = newStatus;
+    if (_notification != null) {
+      _notification!.send('CHG ' + (++_tx).toString() + ' ' + status);
+    }
+    notifyListeners();
+  }
+
+  void addContact(String address) {
+    if (!online || _notification == null) return;
+    final addr = address.trim().toLowerCase();
+    if (!addr.contains('@') || addr.contains(' ')) return;
+    _notification!.send(
+      'ADD ' + (++_tx).toString() + ' FL ' + addr + ' ' + addr,
+    );
+    _notification!.send(
+      'ADD ' + (++_tx).toString() + ' AL ' + addr + ' ' + addr,
+    );
+    buddies.putIfAbsent(addr, () => MsnBuddy(addr));
+    notifyListeners();
+  }
+
+  Future<void> signOut() async {
+    _quitting = true;
+    _notification?.send('OUT');
+    for (final w in _switchboards.values) {
+      await w.close();
+    }
+    _switchboards.clear();
+    await _notification?.close();
+    _notification = null;
+    online = false;
+    connecting = false;
+    buddies.clear();
+    messages.clear();
+    _pending.clear();
+    _calls.clear();
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _quitting = true;
+    _notification?.close();
+    for (final w in _switchboards.values) {
+      w.close();
+    }
+    super.dispose();
+  }
+}
+
+class MsnFrame {
+  MsnFrame(this.words, this.payload);
+  final List<String> words;
+  final Uint8List payload;
+  String get cmd => words.isEmpty ? '' : words[0];
+}
+
+class MsnWire {
+  MsnWire(this.ws, this.onFrame, {this.onClose}) {
+    ws.listen(
+      _read,
+      onError: (_) {},
+      onDone: () {
+        onClose?.call();
+      },
+    );
+  }
+  final WebSocket ws;
+  final void Function(MsnFrame) onFrame;
+  final VoidCallback? onClose;
+  final List<int> _buffer = [];
+  final Map<String, Queue<Completer<MsnFrame>>> _wait = {};
+
+  Future<MsnFrame> request(String command, String op) async {
+    final c = Completer<MsnFrame>();
+    (_wait[op] ??= Queue()).add(c);
+    try {
+      send(command);
+      return await c.future.timeout(const Duration(seconds: 14));
+    } finally {
+      _wait[op]?.remove(c);
+    }
+  }
+
+  void send(String command, [List<int>? bytes]) {
+    ws.add(
+      Uint8List.fromList(<int>[...utf8.encode(command + '\r\n'), ...?bytes]),
+    );
+  }
+
+  void _read(dynamic chunk) {
+    if (chunk is! List<int>) return;
+    _buffer.addAll(chunk);
+    if (_buffer.length > 65536) {
+      ws.close();
+      return;
+    }
+    while (true) {
+      final end = _buffer.indexOf(10);
+      if (end < 0) return;
+      final w = utf8
+          .decode(_buffer.sublist(0, end), allowMalformed: true)
+          .trim()
+          .split(' ');
+      final withPayload = {'MSG', 'NOT', 'UBX', 'GCF', 'ADL'}.contains(w[0]);
+      final length = withPayload ? int.tryParse(w.last) : null;
+      if (length != null && (length < 0 || length > 32768)) {
+        ws.close();
+        return;
+      }
+      if (length != null && _buffer.length < end + 1 + length) return;
+      final data = length == null
+          ? Uint8List(0)
+          : Uint8List.fromList(_buffer.sublist(end + 1, end + 1 + length));
+      _buffer.removeRange(0, end + 1 + (length ?? 0));
+      final p = MsnFrame(w, data);
+      final q = _wait[p.cmd];
+      if (q != null && q.isNotEmpty) {
+        final c = q.removeFirst();
+        if (!c.isCompleted) c.complete(p);
+      }
+      onFrame(p);
+    }
+  }
+
+  Future<void> close() async {
+    await ws.close();
+  }
+}
