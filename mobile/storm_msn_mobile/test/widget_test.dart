@@ -7,7 +7,8 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(const StormMsnApp());
-    expect(find.text('Windows Live Messenger'), findsWidgets);
+    expect(find.text('Arquivo'), findsOneWidget);
+    expect(find.text('Windows Live Messenger'), findsNothing);
     expect(find.text('Bem-vindo novamente!'), findsOneWidget);
     expect(find.text('Entrar'), findsOneWidget);
     expect(find.byType(TextField), findsNWidgets(2));
@@ -38,7 +39,8 @@ void layoutTests() {
       tester.view.resetDevicePixelRatio();
     });
     await tester.pumpWidget(const StormMsnApp());
-    expect(find.text('Windows Live Messenger'), findsWidgets);
+    expect(find.text('Arquivo'), findsOneWidget);
+    expect(find.text('Windows Live Messenger'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }
