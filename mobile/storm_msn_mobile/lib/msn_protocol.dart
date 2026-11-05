@@ -127,6 +127,18 @@ class MsnClient extends ChangeNotifier {
     }
   }
 
+  Future<void> cancelSignIn() async {
+    if (!connecting) return;
+    _quitting = true;
+    connecting = false;
+    online = false;
+    error = null;
+    final notification = _notification;
+    _notification = null;
+    await notification?.close();
+    notifyListeners();
+  }
+
   String readableError(Object e) {
     final s = e.toString();
     if (s.contains('TimeoutException')) {
