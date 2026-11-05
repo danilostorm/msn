@@ -64,3 +64,37 @@ Contatos: cabeçalho compacto com gramado, menu clássico e botões conectados, 
 Correções: diálogos e avisos do Flutter agora utilizam contexto subordinado ao MaterialApp (anteriormente abriam com erro No MaterialLocalizations found); adição aguarda confirmação real do servidor antes de avisar sucesso. Interpretação de eventos RNG de convite, ANS de resposta, mensagem MSG multipartes, aviso de nova mensagem e sincronização LSG de grupos testados com servidor MSNP7/WebSocket de laboratório.
 
 Limitações: a validação concluída foi com servidor simulado. Ainda é necessário testar com duas contas reais, desktop Windows Live Messenger ↔ Android, para confirmar compatibilidade ponta a ponta com o servidor de produção. Aplicativo em segundo plano, notificações push, áudio/vídeo, avatar remoto e fidelidade visual pixel a pixel ainda são trabalhos pendentes. Nunca compartilhe senhas de usuários nos testes.
+ 
+## Versão 0.5.0 — AdMob e perfil com conta oficial
+
+- Entrar com nome de usuário OU e-mail + senha no mesmo campo; a API HTTPS
+  de sessão valida as credenciais usando o backend original e devolve o e-mail
+  para o protocolo MSNP7. A senha não é armazenada e só o ID pode ser lembrado.
+- Tela Entrando... usa mascote girando central e botão Cancelar.
+- Em Contatos, removida a faixa redundante do título; menu ocupa toda a
+  largura; cabeçalho ajustado para evitar overflow.
+- Meu avatar: tocar, escolher foto pela galeria, visualizar e remover.
+  Arquivos JPEG/PNG/WebP de até 2 MB são convertidos pelo servidor em JPG
+  256x256 e servidos para outros clientes. Fotos legadas do WLM não são
+  importadas automaticamente; cada usuário deve atualizar o próprio perfil.
+- Novidades usa o plugin nativo Google AdMob (google_mobile_ads), sem HTML,
+  sem AdSense e sem WebView. Até haver App ID e unidade reais do AdMob, são
+  usados APENAS IDs oficiais de anúncios de teste do Google.
+- Para publicar anúncios de produção, definir STORM_ADMOB_APP_ID no build
+  Android e --dart-define=STORM_ADMOB_BANNER_ID=ca-app-pub-.../... no Flutter.
+  Nunca reutilizar códigos ca-pub-... do AdSense.
+- Cadastro HTTPS em /cadastrar: instruções em português; /registrar protegido
+  por Cloudflare Access com PIN por e-mail e validação de JWT RS256 no backend,
+  vinculando o e-mail do formulário ao comprovadamente verificado.
+- Android oficial usa o keystore release de v0.1.0 no host. Assinaturas
+  debug de v0.2.0-v0.4.0 não são compatíveis com a release; desinstale essas
+  versões de teste antes de instalar esta. APK assinado não garante que
+  Play Protect deixe de mostrar alertas para instalações fora da Play Store.
+
+### Segurança/limites
+O Google Mobile Ads SDK não foi configurado com uma conta AdMob real; este
+build não gera receita. Testar receita após configurar App ID, unidade de
+anúncio e os formulários de consentimento apropriados na conta do Google.
+O Cloudflare Access pode manter textos padrão do fornecedor em inglês mesmo
+com as páginas de explicação e cadastro Storm MSN em português. O chat
+desktop-Android com duas contas reais ainda exige teste manual em dispositivo.
