@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:flutter/services.dart';
 
@@ -9,10 +11,14 @@ import 'msn_protocol.dart';
 import 'classic_login.dart';
 import 'mobile_account.dart';
 import 'admob_footer.dart';
+import 'storm_notifications.dart';
+import 'storm_chat_extras.dart';
+import 'storm_background_service.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   if (!kIsWeb && Platform.isAndroid) {
+    await StormBackgroundService.configure();
     MobileAds.instance.initialize();
   }
   runApp(const StormMsnApp());
@@ -37,7 +43,7 @@ class StormMsnApp extends StatefulWidget {
   State<StormMsnApp> createState() => _StormMsnAppState();
 }
 
-class _StormMsnAppState extends State<StormMsnApp> {
+class _StormMsnAppState extends State<StormMsnApp> with WidgetsBindingObserver {
   // A State de StormMsnApp fica acima do MaterialApp; para diálogos e
   // SnackBars é necessário um contexto abaixo dele.
   final _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -60,6 +66,18 @@ class _StormMsnAppState extends State<StormMsnApp> {
   static const _mobileApi = StormMobileApi();
   bool _showPassword = false;
   bool _rememberEmail = false;
+  bool _rememberPassword = false;
+  bool _autoLogin = false;
+  bool _keepOnline = false;
+  bool _backgroundActive = false;
+  bool _foregroundRestoring = false;
+  Future<void>? _handoffFuture;
+  bool _appVisible = true;
+  bool _restoringLogin = false;
+  String? _lastNotifiedMessage;
+  final _secureStorage = const FlutterSecureStorage();
+  final _notificationCenter = StormMessageNotifications();
+
   static const _preferences = MethodChannel(
     'cloud.hoststorm.storm_msn_mobile/preferences',
   );
@@ -67,7 +85,11 @@ class _StormMsnAppState extends State<StormMsnApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    client.addListener(_incomingChanged);
+    _notificationCenter.initialize(onTap: _openNotifiedConversation);
     _loadRememberedEmail();
+    _restoreSavedLogin();
   }
 
   Future<void> _loadRememberedEmail() async {
@@ -84,6 +106,200 @@ class _StormMsnAppState extends State<StormMsnApp> {
     }
   }
 
+  Future<void> _restoreSavedLogin() async {
+    if (widget.session != null) return;
+    try {
+      final keep =
+          await _secureStorage.read(key: 'storm_keep_online') == 'true';
+      final auto = await _secureStorage.read(key: 'storm_auto_login') == 'true';
+      final savedPassword = await _secureStorage.read(
+        key: 'storm_login_password',
+      );
+      final savedEmail = await _secureStorage.read(key: 'storm_login_id');
+      if (!mounted) return;
+      setState(() {
+        _autoLogin = auto && (savedPassword?.isNotEmpty ?? false);
+        _keepOnline = keep && _autoLogin;
+        _rememberPassword = savedPassword?.isNotEmpty ?? false;
+        if (savedEmail != null && savedEmail.isNotEmpty) {
+          _email.text = savedEmail;
+          _rememberEmail = true;
+        }
+        if (_autoLogin && savedPassword != null) {
+          _password.text = savedPassword;
+        }
+      });
+      if (_autoLogin && _email.text.isNotEmpty) {
+        if (_keepOnline) {
+          await StormBackgroundService.deactivate();
+          await StormBackgroundService.startIdle();
+        }
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && !_cancelledLogin && !client.online) _enter();
+        });
+      }
+    } catch (_) {
+      // The Android Keystore can be invalidated when device security changes.
+    }
+  }
+
+  Future<void> _storeSecureLogin(String identifier, String password) async {
+    try {
+      if (_rememberPassword || _autoLogin) {
+        await _secureStorage.write(key: 'storm_login_id', value: identifier);
+        await _secureStorage.write(
+          key: 'storm_login_password',
+          value: password,
+        );
+      } else {
+        await _secureStorage.delete(key: 'storm_login_password');
+        await _secureStorage.delete(key: 'storm_login_id');
+      }
+      await _secureStorage.write(
+        key: 'storm_auto_login',
+        value: _autoLogin ? 'true' : 'false',
+      );
+      await _secureStorage.write(
+        key: 'storm_keep_online',
+        value: _keepOnline ? 'true' : 'false',
+      );
+      if (_keepOnline) await StormBackgroundService.startIdle();
+    } catch (_) {
+      _toast('Não foi possível salvar a senha protegida neste aparelho.');
+    }
+  }
+
+  Future<void> _forgetSecureLogin() async {
+    try {
+      for (final key in [
+        'storm_login_password',
+        'storm_login_id',
+        'storm_auto_login',
+        'storm_keep_online',
+        'storm_background_inbox',
+      ]) {
+        await _secureStorage.delete(key: key);
+      }
+    } catch (_) {}
+  }
+
+  void _incomingChanged() {
+    if (!mounted) return;
+    final sender = client.recentIncoming;
+    if (sender == null) return;
+    final messages = client.history(sender);
+    if (messages.isEmpty) return;
+    final last = messages.last;
+    if (last.mine) return;
+    final fingerprint =
+        sender + ':' + last.when.microsecondsSinceEpoch.toString();
+    if (_lastNotifiedMessage == fingerprint) return;
+    _lastNotifiedMessage = fingerprint;
+    if (!_appVisible) {
+      final title = client.buddies[sender]?.title ?? sender;
+      _notificationCenter.showConversation(
+        sender: sender,
+        title: title,
+        text: last.text,
+      );
+    }
+  }
+
+  void _openNotifiedConversation(String? sender) {
+    if (sender == null || !mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && client.online) {
+        client.markRead(sender);
+        setState(() => selected = sender);
+      }
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _appVisible = state == AppLifecycleState.resumed;
+    if (state == AppLifecycleState.paused && _keepOnline && client.online) {
+      _handoffFuture ??= _handoffToBackground();
+    } else if (state == AppLifecycleState.resumed) {
+      if (_keepOnline) {
+        _returnFromBackground();
+      } else if (_autoLogin &&
+          !client.online &&
+          !client.connecting &&
+          !_authorizing) {
+        _restoreForReconnect();
+      }
+    }
+  }
+
+  Future<void> _handoffToBackground() async {
+    try {
+      if (!await StormBackgroundService.startIdle()) return;
+      await client.handoffDisconnect();
+      _backgroundActive = true;
+      await StormBackgroundService.activate();
+    } catch (_) {
+      // Android may restrict foreground services, especially on OEM ROMs.
+    } finally {
+      _handoffFuture = null;
+    }
+  }
+
+  Future<void> _returnFromBackground() async {
+    if (_foregroundRestoring || !_autoLogin) return;
+    _foregroundRestoring = true;
+    try {
+      await _handoffFuture;
+      if (_backgroundActive) {
+        await StormBackgroundService.deactivate();
+        _backgroundActive = false;
+      }
+      if (!client.online) await _restoreForReconnect();
+      final raw = await _secureStorage.read(key: 'storm_background_inbox');
+      if (raw != null && raw.isNotEmpty) {
+        await _secureStorage.delete(key: 'storm_background_inbox');
+        final items = jsonDecode(raw);
+        if (items is List) {
+          for (final entry in items) {
+            if (entry is Map &&
+                entry['sender'] is String &&
+                entry['text'] is String) {
+              client.restoreBackgroundMessage(
+                entry['sender'] as String,
+                entry['text'] as String,
+              );
+            }
+          }
+        }
+      }
+    } catch (_) {
+      // The foreground app must still be usable without a service.
+    } finally {
+      _foregroundRestoring = false;
+    }
+  }
+
+  Future<void> _restoreForReconnect() async {
+    if (_restoringLogin || _cancelledLogin || widget.session != null) return;
+    _restoringLogin = true;
+    try {
+      final password = await _secureStorage.read(key: 'storm_login_password');
+      final identifier = await _secureStorage.read(key: 'storm_login_id');
+      if (!mounted ||
+          !_autoLogin ||
+          password == null ||
+          identifier == null ||
+          client.online)
+        return;
+      _password.text = password;
+      _email.text = identifier;
+      await _enter();
+    } catch (_) {
+    } finally {
+      _restoringLogin = false;
+    }
+  }
+
   Future<void> _storeRememberedEmail(String address) async {
     try {
       await _preferences.invokeMethod<void>('saveEmail', <String, String>{
@@ -96,6 +312,8 @@ class _StormMsnAppState extends State<StormMsnApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    client.removeListener(_incomingChanged);
     _email.dispose();
     _password.dispose();
     _search.dispose();
@@ -125,8 +343,10 @@ class _StormMsnAppState extends State<StormMsnApp> {
       await client.signIn(account.email, pass);
       if (!mounted || _cancelledLogin) return;
       if (client.online) {
+        await _storeSecureLogin(identifier, pass);
         _password.clear();
         await _storeRememberedEmail(identifier);
+        _notificationCenter.requestPermission();
         if (mounted) setState(() => selected = null);
       } else {
         _account = null;
@@ -265,10 +485,62 @@ class _StormMsnAppState extends State<StormMsnApp> {
               onPressed: () => Navigator.pop(context, item.key),
               child: Text(item.value),
             ),
+          const Divider(),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, '__keep_online__'),
+            child: Row(
+              children: [
+                Icon(
+                  _keepOnline
+                      ? Icons.notifications_active
+                      : Icons.notifications_off,
+                  color: const Color(0xff1688b5),
+                  size: 18,
+                ),
+                const SizedBox(width: 9),
+                Flexible(
+                  child: Text(
+                    _keepOnline
+                        ? 'Desativar conexão em segundo plano'
+                        : 'Manter online em segundo plano (Android)',
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
-    if (next != null) client.setStatus(next);
+    if (next == '__keep_online__') {
+      if (_keepOnline) {
+        setState(() => _keepOnline = false);
+        await _secureStorage.write(key: 'storm_keep_online', value: 'false');
+        await StormBackgroundService.stop();
+        _toast('Serviço em segundo plano desativado.');
+      } else {
+        final saved = await _secureStorage.read(key: 'storm_login_password');
+        if (saved == null || saved.isEmpty) {
+          _toast(
+            'Para ativar, saia e habilite Salvar senha e Manter online nas opções de login.',
+          );
+          return;
+        }
+        setState(() {
+          _keepOnline = true;
+          _autoLogin = true;
+        });
+        await _secureStorage.write(key: 'storm_auto_login', value: 'true');
+        await _secureStorage.write(key: 'storm_keep_online', value: 'true');
+        final started = await StormBackgroundService.startIdle();
+        _toast(
+          started
+              ? 'Conexão em segundo plano ativada (notificação permanente).'
+              : 'O Android não permitiu iniciar o serviço.',
+        );
+      }
+    } else if (next != null) {
+      client.setStatus(next);
+    }
   }
 
   Future<void> _showAvatarOptions() async {
@@ -367,8 +639,15 @@ class _StormMsnAppState extends State<StormMsnApp> {
   }
 
   Future<void> _logout() async {
+    _cancelledLogin = true;
+    _keepOnline = false;
+    await StormBackgroundService.stop();
     await client.signOut();
     _account = null;
+    _password.clear();
+    _autoLogin = false;
+    _rememberPassword = false;
+    await _forgetSecureLogin();
     if (mounted) setState(() => selected = null);
   }
 
@@ -434,8 +713,60 @@ class _StormMsnAppState extends State<StormMsnApp> {
       onShowPassword: () => setState(() => _showPassword = !_showPassword),
       rememberEmail: _rememberEmail,
       onRememberEmail: (value) {
-        setState(() => _rememberEmail = value);
-        if (!value) _storeRememberedEmail('');
+        setState(() {
+          _rememberEmail = value;
+          if (!value) {
+            _rememberPassword = false;
+            _autoLogin = false;
+            _keepOnline = false;
+          }
+        });
+        if (!value) {
+          _storeRememberedEmail('');
+          _forgetSecureLogin();
+        }
+      },
+      rememberPassword: _rememberPassword,
+      autoLogin: _autoLogin,
+      onRememberPassword: (value) {
+        setState(() {
+          _rememberPassword = value;
+          if (value) _rememberEmail = true;
+          if (!value) {
+            _autoLogin = false;
+            _keepOnline = false;
+          }
+        });
+        if (!value) {
+          _forgetSecureLogin();
+          StormBackgroundService.stop();
+        }
+      },
+      onAutoLogin: (value) {
+        setState(() {
+          _autoLogin = value;
+          if (value) {
+            _rememberPassword = true;
+            _rememberEmail = true;
+          }
+        });
+        if (!value && _keepOnline) {
+          setState(() => _keepOnline = false);
+          StormBackgroundService.stop();
+        }
+        if (!value && !_rememberPassword) _forgetSecureLogin();
+      },
+      keepOnline: _keepOnline,
+      onKeepOnline: (value) {
+        setState(() {
+          _keepOnline = value;
+          if (value) {
+            _autoLogin = true;
+            _rememberPassword = true;
+            _rememberEmail = true;
+          }
+        });
+        if (!value) StormBackgroundService.stop();
       },
     );
   }
@@ -1008,6 +1339,7 @@ class _StormMsnAppState extends State<StormMsnApp> {
       key: ValueKey(email),
       client: client,
       who: who,
+      account: _account,
       showBack: !wide,
       onBack: () => setState(() => selected = null),
       onGames: () => _openExternal(
@@ -1025,6 +1357,7 @@ class _ConversationPanel extends StatefulWidget {
     super.key,
     required this.client,
     required this.who,
+    required this.account,
     required this.showBack,
     required this.onBack,
     required this.onGames,
@@ -1033,6 +1366,7 @@ class _ConversationPanel extends StatefulWidget {
   });
   final MsnClient client;
   final MsnBuddy who;
+  final StormMobileAccount? account;
   final bool showBack;
   final VoidCallback onBack, onGames;
   final void Function(String) onUnavailable, onError;
@@ -1048,6 +1382,20 @@ class _ConversationPanelState extends State<_ConversationPanel> {
     text.dispose();
     list.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickEmoticon() async {
+    final chosen = await showStormEmoticonPicker(context);
+    if (chosen == null || !mounted) return;
+    final value = text.value;
+    final selection = value.selection;
+    final start = selection.isValid ? selection.start : value.text.length;
+    final end = selection.isValid ? selection.end : value.text.length;
+    final next = value.text.replaceRange(start, end, chosen);
+    text.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: start + chosen.length),
+    );
   }
 
   Future<void> send() async {
@@ -1077,10 +1425,6 @@ class _ConversationPanelState extends State<_ConversationPanel> {
     });
     return Column(
       children: [
-        const _ClassicBrand(
-          title: 'Windows Live Messenger',
-          subtitle: 'Conversa • Storm MSN',
-        ),
         Container(
           height: 78,
           decoration: const BoxDecoration(
@@ -1182,12 +1526,7 @@ class _ConversationPanelState extends State<_ConversationPanel> {
               _ClassicConversationTool(
                 icon: Icons.emoji_emotions_outlined,
                 label: 'Emoticons',
-                onTap: () {
-                  text.text += ' :)';
-                  text.selection = TextSelection.collapsed(
-                    offset: text.text.length,
-                  );
-                },
+                onTap: _pickEmoticon,
               ),
             ],
           ),
@@ -1267,14 +1606,17 @@ class _ConversationPanelState extends State<_ConversationPanel> {
                               ),
                             ),
                             const SizedBox(height: 4),
-                            SelectableText(
-                              m.text,
-                              style: const TextStyle(
-                                color: Color(0xff25384b),
-                                fontSize: 14.5,
-                                height: 1.36,
+                            if (stormVoiceUrl(m.text) != null)
+                              StormVoiceMessage(url: stormVoiceUrl(m.text)!)
+                            else
+                              SelectableText(
+                                m.text,
+                                style: const TextStyle(
+                                  color: Color(0xff25384b),
+                                  fontSize: 14.5,
+                                  height: 1.36,
+                                ),
                               ),
-                            ),
                           ],
                         ),
                       );
@@ -1310,7 +1652,20 @@ class _ConversationPanelState extends State<_ConversationPanel> {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              IconButton(
+                tooltip: 'Emoticons e emojis',
+                icon: const Icon(Icons.emoji_emotions_outlined, color: _blue),
+                onPressed: _pickEmoticon,
+              ),
+              StormVoiceRecorder(
+                account: widget.account,
+                onError: widget.onError,
+                sendText: (message) async {
+                  await widget.client.sendMessage(widget.who.email, message);
+                  if (mounted) setState(() {});
+                },
+              ),
+              const SizedBox(width: 4),
               ElevatedButton(
                 onPressed: send,
                 style: ElevatedButton.styleFrom(
