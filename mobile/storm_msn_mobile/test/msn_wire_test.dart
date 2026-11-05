@@ -46,4 +46,35 @@ void main() {
     await peer.close();
     await server.close(force: true);
   });
+  test(
+    'MSN numeric 911 error is returned immediately, not as timeout',
+    () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final connection = Completer<WebSocket>();
+      server.transform(WebSocketTransformer()).listen((ws) {
+        if (!connection.isCompleted) connection.complete(ws);
+      });
+
+      final socket = await WebSocket.connect(
+        'ws://127.0.0.1:' + server.port.toString(),
+      );
+      final peer = await connection.future.timeout(const Duration(seconds: 5));
+      final wire = MsnWire(socket, (_) {});
+      final request = wire.request('USR 4 MD5 S invalidhash', 'USR');
+      peer.add(Uint8List.fromList(utf8.encode('911 4\r\n')));
+      await expectLater(
+        request,
+        throwsA(
+          isA<MsnProtocolException>().having(
+            (e) => e.message,
+            'message',
+            contains('senha'),
+          ),
+        ),
+      );
+      await wire.close();
+      await peer.close();
+      await server.close(force: true);
+    },
+  );
 }
