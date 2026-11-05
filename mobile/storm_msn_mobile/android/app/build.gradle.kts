@@ -27,6 +27,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["ADMOB_APP_ID"] = System.getenv("STORM_ADMOB_APP_ID")?.takeIf { it.matches(Regex("""ca-app-pub-[0-9]+~[0-9]+""")) } ?: "ca-app-pub-3940256099942544~3347511713"
     }
 
     signingConfigs {
