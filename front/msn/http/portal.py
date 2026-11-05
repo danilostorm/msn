@@ -38,7 +38,7 @@ form label{display:block;font-weight:600;margin:18px 0 7px}input{width:100%;padd
 """
 def esc(v):return html.escape(str(v),quote=True)
 def page(body,title="Storm MSN"):
-    return web.Response(text=f'''<!doctype html><html lang="pt-br"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{esc(title)}</title><style>{STYLE}</style></head><body><header><a class="logo" href="/">🟢 Storm MSN</a><nav><a href="/clientes">Clientes</a><a href="/registrar">Cadastro</a><a href="/entrar">Entrar</a></nav></header><main>{body}</main><footer>Projeto independente de nostalgia MSN, sem afiliação à Microsoft ou Escargot.</footer></body></html>''',content_type="text/html",headers=HDR)
+    return web.Response(text=f'''<!doctype html><html lang="pt-br"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{esc(title)}</title><style>{STYLE}</style></head><body><header><a class="logo" href="/">🟢 Storm MSN</a><nav><a href="/clientes">Clientes</a><a href="/cadastrar">Cadastro</a><a href="/entrar">Entrar</a></nav></header><main>{body}</main><footer>Projeto independente de nostalgia MSN, sem afiliação à Microsoft ou Escargot.</footer></body></html>''',content_type="text/html",headers=HDR)
 def csrf(req):
     if "csrf_storm" in req:return req["csrf_storm"]
     key=req.cookies.get(CSRF,"")
@@ -60,19 +60,35 @@ def rate(req,tag,limit,window):
 def token(req):return '<input type="hidden" name="csrf" value="'+csrf(req)+'">'
 async def home(req):
     return page('''<div class="hero"><div><h1>O seu MSN <span>está de volta.</span></h1><p>Encontre seus amigos, mostre seu status e reviva o Messenger em uma rede independente.</p><p><a href="/registrar" class="btn">Criar conta</a><a href="/clientes" class="btn alt">Baixar Storm MSN</a></p><p style="font-size:13px">Cadastro de testes liberado. Windows Live Messenger 2009 ainda em validação.</p></div><div class="card"><h2>💬 Bate-papo clássico</h2><div class="msg"><b>Amigo • Online 🟢</b>Você lembra do MSN?</div><div class="msg right"><b>Você</b>Lembro até dos emoticons 😎</div><div class="msg"><b>Amigo</b>🔔 Chamando sua atenção!</div></div></div><div class="grid"><div class="feature"><b>🟢 Presença online</b><p>Veja quando seus amigos estiverem conectados.</p></div><div class="feature"><b>💬 Conversas</b><p>Conexão real utilizando o protocolo MSN.</p></div><div class="feature"><b>🖥️ Nostalgia</b><p>Instalação simplificada do Windows Live Messenger 2009 original.</p></div></div>''')
+async def signup_landing(req):
+    return page("""<div class="card form">
+    <h2>Cadastro Storm MSN</h2>
+    <p>Cadastre seu <strong>nome de usuário</strong>, e-mail e senha para entrar no Messenger pelo celular e pelo computador.</p>
+    <p class="note"><strong>Proteção contra cadastros automáticos:</strong> na próxima tela, informe seu e-mail.
+    O Cloudflare Access enviará um código de confirmação. Digite o código recebido e volte para concluir o cadastro.</p>
+    <p class="note">Você só poderá criar uma conta com o <strong>mesmo e-mail que foi confirmado</strong>.
+    O código é enviado pelo Cloudflare; não precisamos receber sua senha do e-mail.</p>
+    <a class="btn" href="/registrar">Confirmar e-mail e criar conta</a>
+    </div>""", "Cadastro seguro — Storm MSN")
+
 async def register_get(req,error="",success=""):
+    from .access_signup import verified_signup_email
+    verified_email = await verified_signup_email(req)
     if os.environ.get("MSN_PUBLIC_SIGNUP","0")!="1":
         return page('<div class="card form"><h2>Cadastro em preparação</h2><p>O servidor está em testes. O cadastro público será liberado após a configuração segura de HTTPS e do cliente.</p><a class="btn" href="/clientes">Ver clientes</a></div>')
     if success:return page('<div class="card form"><h2>Cadastro realizado</h2><p>'+esc(success)+'</p><a class="btn" href="/entrar">Entrar</a></div>')
     err='<div class="err">'+esc(error)+'</div>' if error else ''
     body=f'''<div class="card form"><h2>Crie sua conta</h2>{err}<form action="/registrar" method="post">{token(req)}
     <label>Usuário</label><input name="name" minlength="3" maxlength="24" required autocomplete="username" placeholder="Seu apelido">
-    <label>E-mail</label><input type="email" name="email" maxlength="254" required autocomplete="email" placeholder="voce@exemplo.com">
+    <label>E-mail confirmado pelo Cloudflare Access</label><input type="email" name="email" maxlength="254" value="{esc(verified_email)}" readonly autocomplete="email">
+    <p class="note">E-mail verificado por código. Para trocar o endereço, inicie uma nova confirmação no Cloudflare Access.</p>
     <label>Senha exclusiva do Storm MSN</label><input type="password" name="password" minlength="12" maxlength="15" required autocomplete="new-password">
     <input name="website" type="text" style="display:none" tabindex="-1" autocomplete="off" aria-hidden="true">
     <p class="note">Para o Windows Live Messenger 2009, utilize uma senha <strong>exclusiva de 12 a 15 caracteres</strong>. Não reutilize senhas de outros serviços. O protocolo antigo não oferece segurança moderna.</p><button class="btn">Criar conta</button></form></div>'''
     return with_csrf(req,page(body,"Cadastro — Storm MSN"))
 async def register_post(req):
+    from .access_signup import verified_signup_email
+    verified_email = await verified_signup_email(req)
     if os.environ.get("MSN_PUBLIC_SIGNUP","0")!="1":raise web.HTTPForbidden()
     if req.content_length and req.content_length>4096:raise web.HTTPRequestEntityTooLarge(max_size=4096,actual_size=req.content_length)
     p=await req.post()
@@ -80,6 +96,8 @@ async def register_post(req):
     if not rate(req,"reg",3,3600):return await register_get(req,"Muitas tentativas. Volte mais tarde.")
     if str(p.get("website","")).strip():raise web.HTTPForbidden()
     email=str(p.get("email","")).strip().lower();name=str(p.get("name","")).strip();pw=str(p.get("password",""))
+    if email != verified_email:
+        return await register_get(req,"O e-mail informado precisa ser o mesmo verificado no Cloudflare.")
     if not EMAIL.fullmatch(email) or ".." in email or not NAME.fullmatch(name) or not 12<=len(pw)<=15:
         return await register_get(req,"Confira seu e-mail, usuário e senha (senha entre 12 e 15 caracteres).")
     try:
@@ -88,7 +106,7 @@ async def register_post(req):
                 return await register_get(req,"Novas contas limitadas temporariamente. Tente amanhã.")
             if sess.query(DBUser).filter((func.lower(DBUser.email)==email)|(func.lower(DBUser.username)==name.lower())).first():
                 return await register_get(req,"Usuário ou e-mail já cadastrado.")
-            user=DBUser(uuid=gen_uuid(),email=email,username=name,verified=False,friendly_name=name,groups={},settings={})
+            user=DBUser(uuid=gen_uuid(),email=email,username=name,verified=True,friendly_name=name,groups={},settings={})
             set_passwords(user,pw,support_old_msn=True)
             sess.add(user)
     except IntegrityError:return await register_get(req,"Usuário ou e-mail já cadastrado.")
@@ -96,14 +114,20 @@ async def register_post(req):
 async def login_get(req,error=""):
     err='<div class="err">'+esc(error)+'</div>' if error else ''
     return with_csrf(req,page(f'''<div class="card form"><h2>Entrar</h2>{err}<form action="/entrar" method="post">{token(req)}
-    <label>E-mail</label><input type="email" name="email" maxlength="254" required autocomplete="username">
+    <label>E-mail ou nome de usuário</label><input name="email" maxlength="254" required autocomplete="username" placeholder="Usuário ou seuemail@exemplo.com">
     <label>Senha</label><input type="password" name="password" maxlength="128" required autocomplete="current-password"><button class="btn">Entrar</button></form></div>'''))
 async def login_post(req):
     p=await req.post()
     if not valid_csrf(req,p):return await login_get(req,"Atualize a página.")
     if not rate(req,"login",10,600):return await login_get(req,"Muitas tentativas.")
     email=str(p.get("email","")).strip().lower();password=str(p.get("password",""))
-    if not EMAIL.fullmatch(email):return await login_get(req,"Credenciais inválidas.")
+    if not (EMAIL.fullmatch(email) or NAME.fullmatch(email)):
+        return await login_get(req,"Credenciais inválidas.")
+    if "@" not in email:
+        with Conn(settings.DB).session() as sess:
+            user = sess.query(DBUser).filter(func.lower(DBUser.username) == email).one_or_none()
+            if not user:return await login_get(req,"Credenciais inválidas.")
+            email = user.email
     uid=req.app["backend"].user_service.login(email,password)
     if not uid:return await login_get(req,"Credenciais inválidas.")
     ticket,_=req.app["backend"].auth_service.create_token("storm-portal",uid,lifetime=43200)
@@ -251,7 +275,10 @@ def register(app,backend):
     app.router.add_get("/downloads/StormMSN-MsgPlus-5.02.712.zip",download_msgplus)
     app.router.add_get("/downloads/StormMSN-WLM2009-Configuracao.zip",download_wlm_config)
     app.router.add_get("/downloads/StormMSN-WLM2009-Instalador.zip",download_wlm_installer)
-    for route,path,handler in [('get','/',home),('get','/registrar',register_get),('post','/registrar',register_post),
+    for route,path,handler in [('get','/',home),('get','/cadastrar',signup_landing),('get','/registrar',register_get),('post','/registrar',register_post),
         ('get','/entrar',login_get),('post','/entrar',login_post),('get','/conta',account),
         ('post','/sair',logout),('get','/clientes',clients),('get','/api/health',health)]:
         getattr(app.router,'add_'+route)(path,handler)
+    from .mobile_api import register as register_mobile
+    register_mobile(app)
+
