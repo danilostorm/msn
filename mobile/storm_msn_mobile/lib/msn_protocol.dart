@@ -27,6 +27,12 @@ class MsnMessage {
 }
 
 class MsnClient extends ChangeNotifier {
+  MsnClient({String? notificationUrl, String? switchboardUrl})
+    : notificationUrl = notificationUrl ?? 'wss://$stormMsnServer/ws/1863',
+      switchboardUrl = switchboardUrl ?? 'wss://$stormMsnServer/ws/1864';
+
+  final String notificationUrl;
+  final String switchboardUrl;
   String email = '';
   String status = 'NLN';
   String? error;
@@ -45,7 +51,7 @@ class MsnClient extends ChangeNotifier {
 
   Future<MsnWire> _open(int port, void Function(MsnFrame) onFrame) async {
     final ws = await WebSocket.connect(
-      'wss://' + stormMsnServer + '/ws/' + port.toString(),
+      port == 1863 ? notificationUrl : switchboardUrl,
       compression: CompressionOptions.compressionOff,
     ).timeout(const Duration(seconds: 16));
     return MsnWire(
@@ -67,10 +73,14 @@ class MsnClient extends ChangeNotifier {
     error = null;
     connecting = true;
     _quitting = false;
+    buddies.clear();
     notifyListeners();
     try {
-      if (!email.contains('@') || password.isEmpty) {
-        throw StateError('Informe e-mail e senha.');
+      if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email) ||
+          password.isEmpty) {
+        throw StateError(
+          'Digite o e-mail completo da conta Storm MSN e a senha.',
+        );
       }
       final ns = await _open(1863, _onNotification);
       _notification = ns;
@@ -109,8 +119,13 @@ class MsnClient extends ChangeNotifier {
     if (s.contains('TimeoutException')) {
       return 'O MSN não respondeu. Verifique sua conexão.';
     }
-    if (s.contains('WebSocketException')) {
-      return 'Falha de conexão segura com o Storm MSN.';
+    if (s.contains('WebSocketException') ||
+        s.contains('SocketException') ||
+        s.contains('HandshakeException')) {
+      return 'Não foi possível conectar ao Storm MSN. Verifique a internet e tente novamente.';
+    }
+    if (s.contains('MsnProtocolException')) {
+      return s.replaceFirst('MsnProtocolException: ', '');
     }
     return s.replaceFirst('Bad state: ', '');
   }
@@ -119,18 +134,18 @@ class MsnClient extends ChangeNotifier {
     final w = packet.words;
     if (w.isEmpty) return;
     switch (packet.cmd) {
+      // MSNP7 LST: LST trid FL serverVersion index count email nickname groups
+      // AL/BL/RL are permission lists, not additional contacts.
       case 'LST':
-        if (w.length > 4) {
-          final addr = w.firstWhere((x) => x.contains('@'), orElse: () => '');
-          if (addr.isNotEmpty) {
-            final key = addr.toLowerCase();
-            final title = w.length > 5 && !w[5].contains('@')
-                ? Uri.decodeComponent(w[5])
-                : key;
-            buddies.putIfAbsent(key, () => MsnBuddy(key, title: title)).title =
-                title;
-            notifyListeners();
-          }
+        if (w.length >= 8 && w[2] == 'FL' && w[6].contains('@')) {
+          final addr = w[6].toLowerCase();
+          final rawName = w[7];
+          final title = rawName.contains('@') || rawName.isEmpty
+              ? addr
+              : Uri.decodeComponent(rawName);
+          buddies.putIfAbsent(addr, () => MsnBuddy(addr, title: title)).title =
+              title;
+          notifyListeners();
         }
         break;
       case 'ADD':
@@ -140,14 +155,21 @@ class MsnClient extends ChangeNotifier {
           notifyListeners();
         }
         break;
+      // NLN status email displayName; ILN trid status email displayName.
       case 'NLN':
       case 'ILN':
-        final addr = w
-            .firstWhere((x) => x.contains('@'), orElse: () => '')
-            .toLowerCase();
-        if (addr.isNotEmpty) {
+        final addrIndex = packet.cmd == 'ILN' ? 3 : 2;
+        final statusIndex = packet.cmd == 'ILN' ? 2 : 1;
+        if (w.length > addrIndex && w[addrIndex].contains('@')) {
+          final addr = w[addrIndex].toLowerCase();
           final b = buddies.putIfAbsent(addr, () => MsnBuddy(addr));
-          b.presence = w.length > 1 ? w[1] : 'NLN';
+          b.presence = w[statusIndex];
+          final displayIndex = addrIndex + 1;
+          if (w.length > displayIndex &&
+              w[displayIndex].isNotEmpty &&
+              !w[displayIndex].contains('@')) {
+            b.title = Uri.decodeComponent(w[displayIndex]);
+          }
           notifyListeners();
         }
         break;
@@ -326,6 +348,30 @@ class MsnClient extends ChangeNotifier {
   }
 }
 
+class MsnProtocolException implements Exception {
+  const MsnProtocolException(this.message);
+  final String message;
+
+  @override
+  String toString() => 'MsnProtocolException: ' + message;
+}
+
+String msnServerError(String code) {
+  return switch (code) {
+    '911' =>
+      'E-mail ou senha incorretos, ou autenticação antiga indisponível para esta conta.',
+    '205' => 'Este e-mail não está cadastrado no Storm MSN.',
+    '215' => 'O contato já existe.',
+    '217' => 'O contato não está disponível.',
+    '500' ||
+    '600' ||
+    '601' ||
+    '602' ||
+    '603' => 'O Storm MSN está temporariamente indisponível. Tente novamente.',
+    _ => 'O servidor recusou a solicitação (código ' + code + ').',
+  };
+}
+
 class MsnFrame {
   MsnFrame(this.words, this.payload);
   final List<String> words;
@@ -337,8 +383,16 @@ class MsnWire {
   MsnWire(this.ws, this.onFrame, {this.onClose}) {
     ws.listen(
       _read,
-      onError: (_) {},
+      onError: (Object e) {
+        _failPending(
+          MsnProtocolException('A conexão foi interrompida: ' + e.toString()),
+        );
+        onClose?.call();
+      },
       onDone: () {
+        _failPending(
+          const MsnProtocolException('A conexão com o servidor foi encerrada.'),
+        );
         onClose?.call();
       },
     );
@@ -348,6 +402,15 @@ class MsnWire {
   final VoidCallback? onClose;
   final List<int> _buffer = [];
   final Map<String, Queue<Completer<MsnFrame>>> _wait = {};
+
+  void _failPending(MsnProtocolException error) {
+    for (final queue in _wait.values) {
+      while (queue.isNotEmpty) {
+        final pending = queue.removeFirst();
+        if (!pending.isCompleted) pending.completeError(error);
+      }
+    }
+  }
 
   Future<MsnFrame> request(String command, String op) async {
     final c = Completer<MsnFrame>();
@@ -392,6 +455,11 @@ class MsnWire {
           : Uint8List.fromList(_buffer.sublist(end + 1, end + 1 + length));
       _buffer.removeRange(0, end + 1 + (length ?? 0));
       final p = MsnFrame(w, data);
+      if (RegExp(r'^\d{3}$').hasMatch(p.cmd)) {
+        _failPending(MsnProtocolException(msnServerError(p.cmd)));
+        onFrame(p);
+        continue;
+      }
       final q = _wait[p.cmd];
       if (q != null && q.isNotEmpty) {
         final c = q.removeFirst();
