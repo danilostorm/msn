@@ -19,6 +19,12 @@ class ClassicLogin extends StatefulWidget {
     required this.onShowPassword,
     required this.rememberEmail,
     required this.onRememberEmail,
+    this.rememberPassword = false,
+    this.autoLogin = false,
+    this.onRememberPassword,
+    this.onAutoLogin,
+    this.keepOnline = false,
+    this.onKeepOnline,
   });
 
   final TextEditingController email;
@@ -30,6 +36,8 @@ class ClassicLogin extends StatefulWidget {
   final VoidCallback onLogin, onCancel, onRegister, onShowPassword;
   final bool showPassword, rememberEmail;
   final ValueChanged<bool> onRememberEmail;
+  final bool rememberPassword, autoLogin, keepOnline;
+  final ValueChanged<bool>? onRememberPassword, onAutoLogin, onKeepOnline;
 
   @override
   State<ClassicLogin> createState() => _ClassicLoginState();
@@ -143,35 +151,6 @@ class _ClassicLoginState extends State<ClassicLogin>
   Widget _top() {
     return Column(
       children: [
-        Container(
-          height: 32,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xfffafcff), Color(0xffe2e7f0)],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-            ),
-          ),
-          child: Row(
-            children: [
-              const _PeopleMark(size: 18),
-              const SizedBox(width: 6),
-              const Expanded(
-                child: Text(
-                  'Windows Live Messenger',
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12.5, color: Color(0xff202832)),
-                ),
-              ),
-              const Icon(Icons.minimize, size: 17, color: Color(0xff4b5158)),
-              const SizedBox(width: 16),
-              const Icon(Icons.crop_square, size: 15, color: Color(0xff4b5158)),
-              const SizedBox(width: 16),
-              const Icon(Icons.close, size: 17, color: Color(0xff4b5158)),
-            ],
-          ),
-        ),
         Container(
           height: 27,
           width: double.infinity,
@@ -406,10 +385,10 @@ class _ClassicLoginState extends State<ClassicLogin>
                 ],
               ),
             ),
-            if (_showOptions)
+            if (_showOptions) ...[
               CheckboxListTile(
                 title: const Text(
-                  'Lembrar meu ID',
+                  'Lembrar meu usuário ou e-mail',
                   style: TextStyle(fontSize: 11),
                 ),
                 controlAffinity: ListTileControlAffinity.leading,
@@ -418,6 +397,48 @@ class _ClassicLoginState extends State<ClassicLogin>
                 value: widget.rememberEmail,
                 onChanged: (v) => widget.onRememberEmail(v ?? false),
               ),
+              CheckboxListTile(
+                key: const Key('remember-password'),
+                title: const Text(
+                  'Salvar senha com proteção do aparelho',
+                  style: TextStyle(fontSize: 11),
+                ),
+                controlAffinity: ListTileControlAffinity.leading,
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                value: widget.rememberPassword,
+                onChanged: (value) =>
+                    widget.onRememberPassword?.call(value ?? false),
+              ),
+              CheckboxListTile(
+                key: const Key('auto-login'),
+                title: const Text(
+                  'Conectar automaticamente ao abrir',
+                  style: TextStyle(fontSize: 11),
+                ),
+                controlAffinity: ListTileControlAffinity.leading,
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                value: widget.autoLogin,
+                onChanged: (value) => widget.onAutoLogin?.call(value ?? false),
+              ),
+              CheckboxListTile(
+                key: const Key('keep-online'),
+                title: const Text(
+                  'Continuar online em segundo plano (Android)',
+                  style: TextStyle(fontSize: 11),
+                ),
+                subtitle: const Text(
+                  'Serviço experimental com notificação permanente. O Android pode encerrá-lo.',
+                  style: TextStyle(fontSize: 9.5),
+                ),
+                controlAffinity: ListTileControlAffinity.leading,
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                value: widget.keepOnline,
+                onChanged: (value) => widget.onKeepOnline?.call(value ?? false),
+              ),
+            ],
             if (widget.error != null && widget.error!.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 9),
