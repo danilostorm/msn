@@ -1,11 +1,20 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:flutter/services.dart';
 
 import 'msn_protocol.dart';
 import 'classic_login.dart';
+import 'mobile_account.dart';
+import 'admob_footer.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  if (!kIsWeb && Platform.isAndroid) {
+    MobileAds.instance.initialize();
+  }
   runApp(const StormMsnApp());
 }
 
@@ -43,6 +52,12 @@ class _StormMsnAppState extends State<StormMsnApp> {
   bool _onlineOpen = true;
   bool _offlineOpen = false;
   final _favorites = <String>{};
+  StormMobileAccount? _account;
+  bool _authorizing = false;
+  bool _cancelledLogin = false;
+  String? _accountError;
+  int _avatarVersion = DateTime.now().millisecondsSinceEpoch;
+  static const _mobileApi = StormMobileApi();
   bool _showPassword = false;
   bool _rememberEmail = false;
   static const _preferences = MethodChannel(
@@ -89,13 +104,54 @@ class _StormMsnAppState extends State<StormMsnApp> {
   }
 
   Future<void> _enter() async {
-    final address = _email.text.trim();
+    if (_authorizing || client.connecting) return;
+    final identifier = _email.text.trim();
     final pass = _password.text;
-    await client.signIn(address, pass);
-    if (mounted && client.online) {
-      _password.clear();
-      await _storeRememberedEmail(address);
-      if (mounted) setState(() => selected = null);
+    if (identifier.isEmpty || pass.isEmpty) {
+      setState(
+        () => _accountError = 'Informe seu usuário ou e-mail e sua senha.',
+      );
+      return;
+    }
+    setState(() {
+      _cancelledLogin = false;
+      _accountError = null;
+      _authorizing = true;
+    });
+    try {
+      final account = await _mobileApi.signIn(identifier, pass);
+      if (!mounted || _cancelledLogin) return;
+      _account = account;
+      await client.signIn(account.email, pass);
+      if (!mounted || _cancelledLogin) return;
+      if (client.online) {
+        _password.clear();
+        await _storeRememberedEmail(identifier);
+        if (mounted) setState(() => selected = null);
+      } else {
+        _account = null;
+      }
+    } catch (e) {
+      if (mounted && !_cancelledLogin) {
+        setState(
+          () => _accountError = e.toString().replaceFirst('Bad state: ', ''),
+        );
+      }
+      _account = null;
+    } finally {
+      if (mounted) setState(() => _authorizing = false);
+    }
+  }
+
+  Future<void> _cancelSignIn() async {
+    _cancelledLogin = true;
+    await client.cancelSignIn();
+    if (mounted) {
+      setState(() {
+        _authorizing = false;
+        _accountError = null;
+        _account = null;
+      });
     }
   }
 
@@ -215,8 +271,104 @@ class _StormMsnAppState extends State<StormMsnApp> {
     if (next != null) client.setStatus(next);
   }
 
+  Future<void> _showAvatarOptions() async {
+    final account = _account;
+    if (account == null) {
+      _toast('Entre na sua conta para alterar a foto.');
+      return;
+    }
+    final uiContext = _scaffoldKey.currentContext;
+    if (uiContext == null) return;
+    final action = await showModalBottomSheet<String>(
+      context: uiContext,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Alterar imagem'),
+              subtitle: const Text('JPG, PNG ou WebP. Até 2 MB.'),
+              onTap: () => Navigator.pop(context, 'select'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.image_outlined),
+              title: const Text('Visualizar minha imagem'),
+              onTap: () => Navigator.pop(context, 'view'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline),
+              title: const Text('Remover imagem'),
+              onTap: () => Navigator.pop(context, 'delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (action == null || !mounted) return;
+    try {
+      if (action == 'select') {
+        final photo = await ImagePicker().pickImage(
+          source: ImageSource.gallery,
+          maxWidth: 1024,
+          maxHeight: 1024,
+          imageQuality: 85,
+        );
+        if (photo == null) return;
+        final bytes = await photo.readAsBytes();
+        await _mobileApi.uploadAvatar(account.token, bytes);
+        if (mounted) {
+          setState(
+            () => _avatarVersion = DateTime.now().millisecondsSinceEpoch,
+          );
+          _toast('Foto de perfil atualizada.');
+        }
+      } else if (action == 'delete') {
+        await _mobileApi.removeAvatar(account.token);
+        if (mounted) {
+          setState(
+            () => _avatarVersion = DateTime.now().millisecondsSinceEpoch,
+          );
+          _toast('Foto removida.');
+        }
+      } else if (action == 'view') {
+        if (!mounted) return;
+        final ctx = _scaffoldKey.currentContext;
+        if (ctx == null) return;
+        await showDialog<void>(
+          context: ctx,
+          builder: (context) => AlertDialog(
+            title: const Text('Minha imagem'),
+            content: SizedBox(
+              width: 220,
+              height: 220,
+              child: Image.network(
+                'https://$stormMsnServer/api/mobile/avatar/' +
+                    Uri.encodeComponent(account.email) +
+                    '?v=' +
+                    _avatarVersion.toString(),
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Center(
+                  child: Text('Você ainda não possui uma imagem.'),
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Fechar'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      _toast(e.toString().replaceFirst('Bad state: ', ''));
+    }
+  }
+
   Future<void> _logout() async {
     await client.signOut();
+    _account = null;
     if (mounted) setState(() => selected = null);
   }
 
@@ -271,12 +423,13 @@ class _StormMsnAppState extends State<StormMsnApp> {
     return ClassicLogin(
       email: _email,
       password: _password,
-      connecting: client.connecting,
-      error: client.error,
+      connecting: client.connecting || _authorizing,
+      error: _accountError ?? client.error,
       status: client.status,
       onStatus: client.setStatus,
       onLogin: _enter,
-      onRegister: () => _openExternal('https://msn.hoststorm.com.br/registrar'),
+      onCancel: _cancelSignIn,
+      onRegister: () => _openExternal('https://msn.hoststorm.com.br/cadastrar'),
       showPassword: _showPassword,
       onShowPassword: () => setState(() => _showPassword = !_showPassword),
       rememberEmail: _rememberEmail,
@@ -363,10 +516,6 @@ class _StormMsnAppState extends State<StormMsnApp> {
       color: const Color(0xfffdfefe),
       child: Column(
         children: [
-          const _ClassicBrand(
-            title: 'Windows Live Messenger',
-            subtitle: 'Storm MSN Mobile',
-          ),
           _ClassicMenuBar(
             onAddContact: _addContact,
             onSettings: _showSettings,
@@ -602,57 +751,7 @@ class _StormMsnAppState extends State<StormMsnApp> {
                     ],
                   ),
                 ),
-                Expanded(
-                  child: InkWell(
-                    onTap: () => _openExternal(
-                      'https://msn.hoststorm.com.br/AppDirectory/Directory.aspx',
-                    ),
-                    child: Container(
-                      margin: const EdgeInsets.fromLTRB(10, 1, 10, 7),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: const Color(0xff7aaebd)),
-                        gradient: const LinearGradient(
-                          colors: [
-                            Color(0xffd4f8ff),
-                            Color(0xff358bab),
-                            Color(0xff174e78),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                      ),
-                      child: const Center(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.waving_hand,
-                                color: Color(0xffffde69),
-                                size: 20,
-                              ),
-                              SizedBox(width: 10),
-                              Text(
-                                'Windows Live Messenger',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              SizedBox(width: 8),
-                              Icon(
-                                Icons.people_alt_rounded,
-                                color: Color(0xff90e6a4),
-                                size: 27,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+                const Expanded(child: StormAdMobBanner()),
               ],
             ),
           ),
@@ -663,7 +762,7 @@ class _StormMsnAppState extends State<StormMsnApp> {
 
   Widget _personalBar() {
     return Container(
-      height: 83,
+      height: 96,
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           colors: [Color(0xff72c4ed), Color(0xffd8f4ff), Color(0xffedfaff)],
@@ -675,10 +774,21 @@ class _StormMsnAppState extends State<StormMsnApp> {
         children: [
           const Positioned.fill(child: CustomPaint(painter: _MsnWavePainter())),
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
             child: Row(
               children: [
-                const _MsnAvatar(size: 57, online: true, login: false),
+                InkWell(
+                  key: const Key('edit-my-avatar'),
+                  onTap: _showAvatarOptions,
+                  borderRadius: BorderRadius.circular(10),
+                  child: _MsnAvatar(
+                    size: 57,
+                    online: true,
+                    login: false,
+                    email: client.email,
+                    avatarVersion: _avatarVersion,
+                  ),
+                ),
                 const SizedBox(width: 13),
                 Expanded(
                   child: Column(
@@ -686,7 +796,7 @@ class _StormMsnAppState extends State<StormMsnApp> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        client.email.split('@').first,
+                        _account?.username ?? client.email.split('@').first,
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           color: _dark,
@@ -827,7 +937,13 @@ class _StormMsnAppState extends State<StormMsnApp> {
         ),
         child: Row(
           children: [
-            _MsnAvatar(size: 42, online: buddy.online, login: false),
+            _MsnAvatar(
+              size: 42,
+              online: buddy.online,
+              login: false,
+              email: buddy.email,
+              avatarVersion: _avatarVersion,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -981,7 +1097,12 @@ class _ConversationPanelState extends State<_ConversationPanel> {
                   icon: const Icon(Icons.arrow_back, color: _dark),
                 ),
               const SizedBox(width: 10),
-              _MsnAvatar(size: 53, online: widget.who.online, login: false),
+              _MsnAvatar(
+                size: 53,
+                online: widget.who.online,
+                login: false,
+                email: widget.who.email,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -1303,19 +1424,29 @@ class _ClassicMenuBar extends StatelessWidget {
     }
 
     Widget menu(String title, List<(String, String)> items) {
-      return PopupMenuButton<String>(
-        padding: EdgeInsets.zero,
-        tooltip: title,
-        onSelected: select,
-        itemBuilder: (context) => [
-          for (final (label, action) in items)
-            PopupMenuItem<String>(value: action, child: Text(label)),
-        ],
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
-          child: Text(
-            title,
-            style: const TextStyle(fontSize: 11.4, color: Color(0xff23394d)),
+      return Expanded(
+        child: PopupMenuButton<String>(
+          padding: EdgeInsets.zero,
+          tooltip: title,
+          onSelected: select,
+          itemBuilder: (context) => [
+            for (final (label, action) in items)
+              PopupMenuItem<String>(value: action, child: Text(label)),
+          ],
+          child: Center(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 5),
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 11.4,
+                    color: Color(0xff23394d),
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       );
@@ -1331,29 +1462,26 @@ class _ClassicMenuBar extends StatelessWidget {
         ),
         border: Border(bottom: BorderSide(color: Color(0xffa1c4d5))),
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            menu('Arquivo', const [
-              ('Meu status', 'settings'),
-              ('Sair do Messenger', 'logout'),
-            ]),
-            menu('Contatos', const [
-              ('Adicionar contato', 'add'),
-              ('Meu status', 'settings'),
-            ]),
-            menu('Ações', const [
-              ('Adicionar contato', 'add'),
-              ('Abrir jogos', 'games'),
-            ]),
-            menu('Ferramentas', const [('Opções de presença', 'settings')]),
-            menu('Ajuda', const [
-              ('Ajuda com contatos', 'add'),
-              ('Jogos', 'games'),
-            ]),
-          ],
-        ),
+      child: Row(
+        children: [
+          menu('Arquivo', const [
+            ('Meu status', 'settings'),
+            ('Sair do Messenger', 'logout'),
+          ]),
+          menu('Contatos', const [
+            ('Adicionar contato', 'add'),
+            ('Meu status', 'settings'),
+          ]),
+          menu('Ações', const [
+            ('Adicionar contato', 'add'),
+            ('Abrir jogos', 'games'),
+          ]),
+          menu('Ferramentas', const [('Opções de presença', 'settings')]),
+          menu('Ajuda', const [
+            ('Ajuda com contatos', 'add'),
+            ('Jogos', 'games'),
+          ]),
+        ],
       ),
     );
   }
@@ -1409,9 +1537,13 @@ class _MsnAvatar extends StatelessWidget {
     required this.size,
     required this.online,
     required this.login,
+    this.email,
+    this.avatarVersion = 0,
   });
   final double size;
   final bool online, login;
+  final String? email;
+  final int avatarVersion;
   @override
   Widget build(BuildContext context) => Container(
     width: size,
@@ -1443,10 +1575,28 @@ class _MsnAvatar extends StatelessWidget {
         borderRadius: BorderRadius.circular(size / 8),
         border: Border.all(color: Colors.white, width: 2),
       ),
-      child: Icon(
-        Icons.person,
-        size: size * .58,
-        color: const Color(0xff3181ae),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(size / 8),
+        child: email == null || email!.isEmpty
+            ? Icon(
+                Icons.person,
+                size: size * .58,
+                color: const Color(0xff3181ae),
+              )
+            : Image.network(
+                'https://$stormMsnServer/api/mobile/avatar/' +
+                    Uri.encodeComponent(email!) +
+                    '?v=' +
+                    avatarVersion.toString(),
+                fit: BoxFit.cover,
+                width: size,
+                height: size,
+                errorBuilder: (_, __, ___) => Icon(
+                  Icons.person,
+                  size: size * .58,
+                  color: const Color(0xff3181ae),
+                ),
+              ),
       ),
     ),
   );
