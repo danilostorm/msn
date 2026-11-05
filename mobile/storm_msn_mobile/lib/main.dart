@@ -29,11 +29,20 @@ class StormMsnApp extends StatefulWidget {
 }
 
 class _StormMsnAppState extends State<StormMsnApp> {
+  // A State de StormMsnApp fica acima do MaterialApp; para diálogos e
+  // SnackBars é necessário um contexto abaixo dele.
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
   late final MsnClient client = widget.session ?? MsnClient();
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _search = TextEditingController();
   String? selected;
+  bool _favoritesOpen = true;
+  bool _groupsOpen = true;
+  bool _onlineOpen = true;
+  bool _offlineOpen = false;
+  final _favorites = <String>{};
   bool _showPassword = false;
   bool _rememberEmail = false;
   static const _preferences = MethodChannel(
@@ -92,8 +101,8 @@ class _StormMsnAppState extends State<StormMsnApp> {
 
   void _toast(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), duration: const Duration(seconds: 3)),
+    _messengerKey.currentState?.showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 4)),
     );
   }
 
@@ -108,13 +117,15 @@ class _StormMsnAppState extends State<StormMsnApp> {
   }
 
   Future<void> _addContact() async {
-    final input = TextEditingController();
+    var typedAddress = '';
+    final uiContext = _scaffoldKey.currentContext;
+    if (uiContext == null) return;
     final who = await showDialog<String>(
-      context: context,
+      context: uiContext,
       builder: (c) => AlertDialog(
         title: const Text('Adicionar contato'),
         content: TextField(
-          controller: input,
+          onChanged: (value) => typedAddress = value,
           keyboardType: TextInputType.emailAddress,
           decoration: const InputDecoration(
             hintText: 'amigo@exemplo.com',
@@ -127,18 +138,81 @@ class _StormMsnAppState extends State<StormMsnApp> {
             child: const Text('Cancelar'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(c, input.text.trim()),
+            onPressed: () => Navigator.pop(c, typedAddress.trim()),
             child: const Text('Adicionar'),
           ),
         ],
       ),
     );
-    if (who != null && who.contains('@')) {
-      client.addContact(who);
-      _toast('Solicitação enviada a ' + who);
+    if (who != null && who.isNotEmpty) {
+      try {
+        await client.addContact(who);
+        _toast('Contato confirmado: ' + who);
+      } catch (e) {
+        _toast(client.readableError(e));
+      }
     }
-    // The dialog's input is not a persistent account credential.
-    input.dispose();
+    // The dialog owns its editable field, avoiding premature controller disposal.
+  }
+
+  Future<void> _showContactOptions(MsnBuddy buddy) async {
+    final uiContext = _scaffoldKey.currentContext;
+    if (uiContext == null) return;
+    final selection = await showModalBottomSheet<String>(
+      context: uiContext,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.chat_outlined),
+              title: const Text('Conversar'),
+              onTap: () => Navigator.pop(context, 'chat'),
+            ),
+            ListTile(
+              leading: Icon(
+                _favorites.contains(buddy.email)
+                    ? Icons.star_border
+                    : Icons.star,
+              ),
+              title: Text(
+                _favorites.contains(buddy.email)
+                    ? 'Remover dos favoritos'
+                    : 'Adicionar aos favoritos',
+              ),
+              onTap: () => Navigator.pop(context, 'favorite'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (selection == 'chat') {
+      client.markRead(buddy.email);
+      setState(() => selected = buddy.email);
+    } else if (selection == 'favorite') {
+      setState(() {
+        if (!_favorites.add(buddy.email)) _favorites.remove(buddy.email);
+      });
+    }
+  }
+
+  Future<void> _showSettings() async {
+    final uiContext = _scaffoldKey.currentContext;
+    if (uiContext == null) return;
+    final next = await showDialog<String>(
+      context: uiContext,
+      builder: (context) => SimpleDialog(
+        title: const Text('Meu status no Messenger'),
+        children: [
+          for (final item in _statuses.entries)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, item.key),
+              child: Text(item.value),
+            ),
+        ],
+      ),
+    );
+    if (next != null) client.setStatus(next);
   }
 
   Future<void> _logout() async {
@@ -149,6 +223,7 @@ class _StormMsnAppState extends State<StormMsnApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      scaffoldMessengerKey: _messengerKey,
       title: 'Storm MSN • Mobile',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -182,6 +257,7 @@ class _StormMsnAppState extends State<StormMsnApp> {
       home: AnimatedBuilder(
         animation: client,
         builder: (context, _) => Scaffold(
+          key: _scaffoldKey,
           resizeToAvoidBottomInset: true,
           body: SafeArea(
             child: client.online ? _mainView(context) : _loginView(context),
@@ -293,6 +369,7 @@ class _StormMsnAppState extends State<StormMsnApp> {
           ),
           _ClassicMenuBar(
             onAddContact: _addContact,
+            onSettings: _showSettings,
             onGames: () => _openExternal(
               'https://msn.hoststorm.com.br/AppDirectory/Directory.aspx',
             ),
@@ -300,172 +377,281 @@ class _StormMsnAppState extends State<StormMsnApp> {
           ),
           _personalBar(),
           Container(
+            height: 53,
+            padding: const EdgeInsets.fromLTRB(10, 7, 7, 7),
             decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xfff3faff), Color(0xffd9f1fc)],
-              ),
+              color: Color(0xfff5fafc),
+              border: Border(bottom: BorderSide(color: Color(0xffd4e8ef))),
             ),
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-            child: Column(
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _search,
-                        onChanged: (_) => setState(() {}),
-                        decoration: const InputDecoration(
-                          hintText: 'Pesquisar contatos...',
-                          prefixIcon: Icon(
-                            Icons.search,
-                            color: Color(0xff7aa6b9),
-                          ),
-                          contentPadding: EdgeInsets.symmetric(vertical: 11),
+                Expanded(
+                  child: SizedBox(
+                    height: 35,
+                    child: TextField(
+                      controller: _search,
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        hintText: 'Pesquisar contatos...',
+                        hintStyle: TextStyle(fontSize: 11),
+                        prefixIcon: Icon(
+                          Icons.search,
+                          size: 17,
+                          color: Color(0xff8db9c8),
                         ),
+                        contentPadding: EdgeInsets.symmetric(vertical: 7),
                       ),
                     ),
-                    const SizedBox(width: 6),
-                    _IconTool(
-                      icon: Icons.person_add_alt_1_outlined,
-                      label: 'Adicionar contato',
-                      onTap: _addContact,
-                    ),
-                    _IconTool(
-                      icon: Icons.videogame_asset_outlined,
-                      label: 'Jogos SNES',
-                      onTap: () => _openExternal(
-                        'https://msn.hoststorm.com.br/AppDirectory/Directory.aspx',
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Icon(Icons.circle, size: 10, color: _statusGreen),
-                    const SizedBox(width: 5),
-                    Text(
-                      active.length.toString() + ' online',
-                      style: const TextStyle(color: _dark, fontSize: 12),
-                    ),
-                    const SizedBox(width: 11),
-                    Text(
-                      all.length.toString() + ' contatos',
-                      style: const TextStyle(
-                        color: Color(0xff7892a2),
-                        fontSize: 12,
-                      ),
-                    ),
-                    const Spacer(),
-                    PopupMenuButton<String>(
-                      onSelected: (v) {
-                        if (v == 'out') _logout();
-                      },
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(
-                          value: 'out',
-                          child: Text('Sair do Messenger'),
-                        ),
-                      ],
-                      icon: const Icon(Icons.more_horiz, color: _dark),
-                      tooltip: 'Opções',
-                    ),
-                  ],
+                _IconTool(
+                  icon: Icons.person_add_alt_1_outlined,
+                  label: 'Adicionar contato',
+                  onTap: _addContact,
+                ),
+                _IconTool(
+                  icon: Icons.sports_esports_outlined,
+                  label: 'Jogos SNES',
+                  onTap: () => _openExternal(
+                    'https://msn.hoststorm.com.br/AppDirectory/Directory.aspx',
+                  ),
+                ),
+                _IconTool(
+                  icon: Icons.settings_outlined,
+                  label: 'Opções',
+                  onTap: _showSettings,
                 ),
               ],
             ),
           ),
+          if (client.recentIncoming != null &&
+              selected != client.recentIncoming)
+            Material(
+              color: const Color(0xffd6f5ff),
+              child: InkWell(
+                key: const Key('incoming-message-banner'),
+                onTap: () {
+                  final sender = client.recentIncoming;
+                  if (sender == null) return;
+                  client.markRead(sender);
+                  setState(() => selected = sender);
+                },
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(11, 9, 11, 9),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.mark_unread_chat_alt,
+                        color: Color(0xff227eaf),
+                        size: 21,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Nova mensagem de ' +
+                              (client.buddies[client.recentIncoming]?.title ??
+                                  client.recentIncoming!),
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                            color: Color(0xff20526c),
+                          ),
+                        ),
+                      ),
+                      const Icon(
+                        Icons.chevron_right,
+                        size: 20,
+                        color: Color(0xff3386af),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(6, 8, 6, 15),
+              padding: const EdgeInsets.fromLTRB(5, 5, 5, 12),
               children: [
-                if (all.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 15,
-                      vertical: 35,
+                _sectionHeader(
+                  '★ Favoritos (' + _favorites.length.toString() + ')',
+                  _favoritesOpen,
+                  () => setState(() => _favoritesOpen = !_favoritesOpen),
+                  color: const Color(0xffd89c31),
+                ),
+                if (_favoritesOpen)
+                  if (_favorites.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(27, 3, 9, 7),
+                      child: Text(
+                        'Mantenha seus amigos favoritos aqui. '
+                        'Toque e segure um contato para adicionar.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Color(0xff2874bf),
+                          height: 1.4,
+                        ),
+                      ),
+                    )
+                  else
+                    ...all
+                        .where((b) => _favorites.contains(b.email))
+                        .map(_buddyTile),
+                const SizedBox(height: 5),
+                _sectionHeader(
+                  'Grupos (' + client.groups.length.toString() + ')',
+                  _groupsOpen,
+                  () => setState(() => _groupsOpen = !_groupsOpen),
+                  color: const Color(0xff388eaa),
+                ),
+                if (_groupsOpen)
+                  for (final entry in client.groups.entries) ...[
+                    _sectionHeader(
+                      entry.value,
+                      true,
+                      () => _toast('Grupo: ' + entry.value),
+                      color: const Color(0xff5aa345),
+                      indent: 18,
                     ),
+                    ...all
+                        .where((b) => b.groupIds.contains(entry.key))
+                        .map(
+                          (b) => Padding(
+                            padding: const EdgeInsets.only(left: 16),
+                            child: _buddyTile(b),
+                          ),
+                        ),
+                  ],
+                const SizedBox(height: 4),
+                _sectionHeader(
+                  'Disponível (' + active.length.toString() + ')',
+                  _onlineOpen,
+                  () => setState(() => _onlineOpen = !_onlineOpen),
+                  color: const Color(0xff318abc),
+                ),
+                if (_onlineOpen) ...active.map(_buddyTile),
+                _sectionHeader(
+                  'Offline (' + inactive.length.toString() + ')',
+                  _offlineOpen,
+                  () => setState(() => _offlineOpen = !_offlineOpen),
+                  color: const Color(0xff97acb3),
+                ),
+                if (_offlineOpen) ...inactive.map(_buddyTile),
+                if (client.buddies.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(15),
                     child: Column(
                       children: [
-                        const Icon(
-                          Icons.people_outline,
-                          color: Color(0xffa7cadc),
-                          size: 58,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          client.buddies.isEmpty
-                              ? 'Sua lista de contatos aparecerá aqui.'
-                              : 'Nenhum contato corresponde à pesquisa.',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Color(0xff7c9bae),
-                            fontSize: 14,
+                        const Text(
+                          'Sua lista de contatos está vazia.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xff547b92),
                           ),
                         ),
-                        const SizedBox(height: 15),
-                        if (client.buddies.isEmpty)
-                          OutlinedButton.icon(
-                            onPressed: _addContact,
-                            icon: const Icon(Icons.person_add_alt_outlined),
-                            label: const Text('Adicionar amigo'),
-                          ),
+                        const SizedBox(height: 9),
+                        TextButton.icon(
+                          onPressed: _addContact,
+                          icon: const Icon(Icons.person_add_alt_outlined),
+                          label: const Text('Adicionar amigo'),
+                        ),
                       ],
                     ),
                   ),
-                if (active.isNotEmpty) ...[
-                  _group(
-                    'Contatos online',
-                    active.length,
-                    Icons.people_alt_outlined,
-                  ),
-                  ...active.map(_buddyTile),
-                ],
-                if (inactive.isNotEmpty) ...[
-                  _group(
-                    'Contatos offline',
-                    inactive.length,
-                    Icons.people_outline,
-                  ),
-                  ...inactive.map(_buddyTile),
-                ],
-                const SizedBox(height: 20),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12),
-                  child: Text(
-                    '★ Favoritos podem ser organizados na versão desktop.',
-                    style: TextStyle(color: Color(0xff91a8b6), fontSize: 11),
-                  ),
-                ),
               ],
             ),
           ),
           Container(
-            height: 45,
+            height: 112,
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                colors: [Color(0xffc5e8f8), Color(0xffe8f8ff)],
+                colors: [Color(0xfff4ffff), Color(0xffb4e8ee)],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
-              border: Border(top: BorderSide(color: Color(0xffb7ddeb))),
+              border: Border(top: BorderSide(color: Color(0xffb4dce8))),
             ),
-            child: Row(
+            child: Column(
               children: [
-                const SizedBox(width: 12),
-                const Icon(Icons.public, color: Color(0xff3087b4), size: 17),
-                const SizedBox(width: 7),
-                const Expanded(
-                  child: Text(
-                    'Storm MSN • Conectado',
-                    style: TextStyle(color: Color(0xff387ba5), fontSize: 12),
+                Container(
+                  height: 38,
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.symmetric(horizontal: 13),
+                  child: Row(
+                    children: [
+                      const Text(
+                        'Novidades',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Color(0xff356993),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          client.recentIncoming == null
+                              ? 'Não há novas atividades.'
+                              : 'Você tem uma nova mensagem!',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xff86a3b3),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                TextButton(
-                  onPressed: () => _openExternal(
-                    'https://msn.hoststorm.com.br/AppDirectory/Directory.aspx',
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _openExternal(
+                      'https://msn.hoststorm.com.br/AppDirectory/Directory.aspx',
+                    ),
+                    child: Container(
+                      margin: const EdgeInsets.fromLTRB(10, 1, 10, 7),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: const Color(0xff7aaebd)),
+                        gradient: const LinearGradient(
+                          colors: [
+                            Color(0xffd4f8ff),
+                            Color(0xff358bab),
+                            Color(0xff174e78),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                      child: const Center(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.waving_hand,
+                                color: Color(0xffffde69),
+                                size: 20,
+                              ),
+                              SizedBox(width: 10),
+                              Text(
+                                'Windows Live Messenger',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Icon(
+                                Icons.people_alt_rounded,
+                                color: Color(0xff90e6a4),
+                                size: 27,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                  child: const Text('Jogos', style: TextStyle(fontSize: 12)),
                 ),
               ],
             ),
@@ -477,7 +663,7 @@ class _StormMsnAppState extends State<StormMsnApp> {
 
   Widget _personalBar() {
     return Container(
-      height: 111,
+      height: 83,
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           colors: [Color(0xff72c4ed), Color(0xffd8f4ff), Color(0xffedfaff)],
@@ -492,7 +678,7 @@ class _StormMsnAppState extends State<StormMsnApp> {
             padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
             child: Row(
               children: [
-                const _MsnAvatar(size: 63, online: true, login: false),
+                const _MsnAvatar(size: 57, online: true, login: false),
                 const SizedBox(width: 13),
                 Expanded(
                   child: Column(
@@ -562,6 +748,39 @@ class _StormMsnAppState extends State<StormMsnApp> {
     );
   }
 
+  Widget _sectionHeader(
+    String title,
+    bool expanded,
+    VoidCallback onTap, {
+    Color color = const Color(0xff247ca3),
+    double indent = 0,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(5 + indent, 7, 7, 5),
+        child: Row(
+          children: [
+            Icon(
+              expanded ? Icons.arrow_drop_down : Icons.arrow_right,
+              color: const Color(0xff516a78),
+              size: 14,
+            ),
+            const SizedBox(width: 3),
+            Icon(Icons.group_outlined, size: 14, color: color),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                title,
+                style: const TextStyle(fontSize: 13, color: Color(0xff2d77a4)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _group(String name, int count, IconData icon) => Container(
     margin: const EdgeInsets.fromLTRB(8, 9, 8, 3),
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
@@ -593,7 +812,11 @@ class _StormMsnAppState extends State<StormMsnApp> {
   Widget _buddyTile(MsnBuddy buddy) {
     final isSelected = selected == buddy.email;
     return InkWell(
-      onTap: () => setState(() => selected = buddy.email),
+      onTap: () {
+        client.markRead(buddy.email);
+        setState(() => selected = buddy.email);
+      },
+      onLongPress: () => _showContactOptions(buddy),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
@@ -633,6 +856,23 @@ class _StormMsnAppState extends State<StormMsnApp> {
                 ],
               ),
             ),
+            if ((client.unread[buddy.email] ?? 0) > 0)
+              Container(
+                margin: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xff1599d0),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Text(
+                  (client.unread[buddy.email] ?? 0).toString(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
             Icon(
               Icons.circle,
               size: 9,
@@ -1043,56 +1283,80 @@ class _ClassicMenuBar extends StatelessWidget {
     required this.onAddContact,
     required this.onGames,
     required this.onLogout,
+    required this.onSettings,
   });
-  final VoidCallback onAddContact, onGames, onLogout;
+  final VoidCallback onAddContact, onGames, onLogout, onSettings;
 
   @override
   Widget build(BuildContext context) {
+    void select(String action) {
+      switch (action) {
+        case 'add':
+          onAddContact();
+        case 'games':
+          onGames();
+        case 'logout':
+          onLogout();
+        case 'settings':
+          onSettings();
+      }
+    }
+
+    Widget menu(String title, List<(String, String)> items) {
+      return PopupMenuButton<String>(
+        padding: EdgeInsets.zero,
+        tooltip: title,
+        onSelected: select,
+        itemBuilder: (context) => [
+          for (final (label, action) in items)
+            PopupMenuItem<String>(value: action, child: Text(label)),
+        ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+          child: Text(
+            title,
+            style: const TextStyle(fontSize: 11.4, color: Color(0xff23394d)),
+          ),
+        ),
+      );
+    }
+
     return Container(
-      height: 34,
+      height: 28,
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xfffefefe), Color(0xffeaf3f8)],
+          colors: [Color(0xfffafdff), Color(0xffe5edf3)],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
         ),
-        border: Border(bottom: BorderSide(color: Color(0xffbad8e5))),
+        border: Border(bottom: BorderSide(color: Color(0xffa1c4d5))),
       ),
-      child: Row(
-        children: [
-          _ClassicMenuItem(label: 'Contatos', onTap: onAddContact),
-          _ClassicMenuItem(label: 'Jogos', onTap: onGames),
-          _ClassicMenuItem(label: 'Sair', onTap: onLogout),
-          const Spacer(),
-          const Padding(
-            padding: EdgeInsets.only(right: 11),
-            child: Icon(
-              Icons.keyboard_arrow_down,
-              color: Color(0xff92b1c2),
-              size: 16,
-            ),
-          ),
-        ],
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            menu('Arquivo', const [
+              ('Meu status', 'settings'),
+              ('Sair do Messenger', 'logout'),
+            ]),
+            menu('Contatos', const [
+              ('Adicionar contato', 'add'),
+              ('Meu status', 'settings'),
+            ]),
+            menu('Ações', const [
+              ('Adicionar contato', 'add'),
+              ('Abrir jogos', 'games'),
+            ]),
+            menu('Ferramentas', const [('Opções de presença', 'settings')]),
+            menu('Ajuda', const [
+              ('Ajuda com contatos', 'add'),
+              ('Jogos', 'games'),
+            ]),
+          ],
+        ),
       ),
     );
   }
-}
-
-class _ClassicMenuItem extends StatelessWidget {
-  const _ClassicMenuItem({required this.label, required this.onTap});
-  final String label;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) => InkWell(
-    onTap: onTap,
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      child: Text(
-        label,
-        style: const TextStyle(fontSize: 12, color: Color(0xff3c6275)),
-      ),
-    ),
-  );
 }
 
 class _ClassicBrand extends StatelessWidget {
@@ -1105,11 +1369,11 @@ class _ClassicBrand extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 10),
     decoration: const BoxDecoration(
       gradient: LinearGradient(
-        colors: [Color(0xffbde9f9), Color(0xffa4d9ec), Color(0xff78b7d6)],
+        colors: [Color(0xfffcfdfe), Color(0xffecf0f5), Color(0xffe1e5ec)],
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
       ),
-      border: Border(bottom: BorderSide(color: Color(0xff6398b3))),
+      border: Border(bottom: BorderSide(color: Color(0xffb2cbd9))),
     ),
     child: Row(
       children: [
@@ -1190,32 +1454,54 @@ class _MsnAvatar extends StatelessWidget {
 
 class _MsnWavePainter extends CustomPainter {
   const _MsnWavePainter();
+
   @override
   void paint(Canvas canvas, Size size) {
-    final p = Paint()..color = Colors.white.withValues(alpha: .32);
-    final wave = Path()
-      ..moveTo(size.width * .47, 0)
-      ..quadraticBezierTo(
-        size.width * .68,
-        size.height * .72,
+    final background = Offset.zero & size;
+    canvas.drawRect(
+      background,
+      Paint()
+        ..shader = const LinearGradient(
+          colors: [Color(0xff7acfe9), Color(0xffc5f4f8)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ).createShader(background),
+    );
+    final hill = Path()
+      ..moveTo(0, size.height * .76)
+      ..cubicTo(
+        size.width * .35,
+        size.height * .25,
+        size.width * .65,
+        size.height * .43,
         size.width,
-        size.height * .26,
+        size.height * .82,
       )
-      ..lineTo(size.width, 0)
-      ..close();
-    canvas.drawPath(wave, p);
-    p.color = Colors.white.withValues(alpha: .24);
-    final lower = Path()
-      ..moveTo(0, size.height * .9)
-      ..quadraticBezierTo(
-        size.width * .55,
-        size.height * .12,
-        size.width,
-        size.height,
-      )
+      ..lineTo(size.width, size.height)
       ..lineTo(0, size.height)
       ..close();
-    canvas.drawPath(lower, p);
+    canvas.drawPath(hill, Paint()..color = const Color(0xff9ed328));
+    final grass = Path()
+      ..moveTo(0, size.height * .95)
+      ..quadraticBezierTo(
+        size.width * .66,
+        size.height * .57,
+        size.width,
+        size.height * .88,
+      )
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(grass, Paint()..color = const Color(0xff69bd15));
+    for (var i = 0; i < 23; i++) {
+      final x = size.width * (.27 + .72 * i / 23);
+      final y = size.height * (.69 + .09 * (i % 4) / 4);
+      canvas.drawCircle(
+        Offset(x, y),
+        i % 3 == 0 ? 2.3 : 1.3,
+        Paint()..color = Colors.white,
+      );
+    }
   }
 
   @override
