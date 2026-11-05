@@ -44,6 +44,19 @@ void main() {
             );
           } else if (line.startsWith('CHG ')) {
             send('CHG 6 NLN\r\n');
+          } else if (line.startsWith('ADD ')) {
+            final parts = line.split(' ');
+            send(
+              'ADD ' +
+                  parts[1] +
+                  ' ' +
+                  parts[2] +
+                  ' 2 ' +
+                  parts[3] +
+                  ' ' +
+                  parts[3] +
+                  '\r\n',
+            );
           }
         });
       });
@@ -57,14 +70,28 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Amiga do MSN'), findsOneWidget);
-    expect(find.text('Contatos online'), findsOneWidget);
+    expect(find.text('Disponível (1)'), findsOneWidget);
     expect(find.text('Contatos'), findsOneWidget);
+    await tester.tap(find.byTooltip('Adicionar contato').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Adicionar contato'), findsWidgets);
+    await tester.enterText(find.byType(TextField).last, 'novo@local.invalid');
+    await tester.tap(find.text('Cancelar').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Adicionar contato'), findsNothing);
 
     await tester.tap(find.text('Amiga do MSN'));
     await tester.pumpAndSettle();
     expect(find.text('Chamar'), findsOneWidget);
     expect(find.text('Jogos'), findsWidgets);
-    expect(find.byWidgetPredicate((w) => w is TextField && w.decoration?.hintText == 'Digite sua mensagem...'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (w) =>
+            w is TextField &&
+            w.decoration?.hintText == 'Digite sua mensagem...',
+      ),
+      findsOneWidget,
+    );
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.runAsync(() async {
