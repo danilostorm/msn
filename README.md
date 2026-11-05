@@ -95,3 +95,8 @@ Cadastro de testes habilitado via MSN_PUBLIC_SIGNUP=1. Protecoes: CSRF, honeypot
 - Analise estatica do WLM 2009: executavel msnmsgrexe extraido de MsgrCore.cab inclui referencias MinFlashPlayer, DDPFlashNotInstalled, DDPFlashPlayer, Macromedia e http://www.macromedia.com/go/getflashplayer/.
 - Os winks WLM 2009 sao pacotes .mct (CABs) contendo .swf e assets. Exemplos: bola.mct, bow.mct, dancing_pig.mct.
 - Escargot documenta Flash ActiveX 7.0-10.3 e isolamento COM como alternativa; nao foi encontrado Flash ActiveX embutido. Flash antigo nao incluido no Storm MSN.
+
+
+## Storm MSN × PlayStor — catálogo SNES (05/11/2026)
+
+A fase inicial do catálogo SNES do PlayStor está implantada em `https://msn.hoststorm.com.br/AppDirectory/Directory.aspx`. A configuração `GamesBrowserURL` do WLM 2009 aponta para esse endereço. Há 230 registros SNES, capas, pesquisa e links que abrem o jogo no PlayStor (com login, em navegador moderno). O catálogo funciona por Cloudflare/Oracle sem mexer no login nem nas bases SQLite do MSN. **O botão Jogos no cliente Windows real e o multiplayer nativo ainda precisam de validação; o serviço SOAP é experimental.** Detalhes, configuração, testes e limites em [integrations/playstor-snes/README.md](integrations/playstor-snes/README.md).

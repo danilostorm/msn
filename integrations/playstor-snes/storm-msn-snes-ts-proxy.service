@@ -1,0 +1,19 @@
+[Unit]
+Description=SNES catalog private Tailscale ingress for existing cloudflared origins
+After=network-online.target tailscaled.service storm-msn-snes-catalog.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/node /usr/local/libexec/storm-msn-ha/playstor-snes-ts-proxy.js
+Restart=on-failure
+RestartSec=3
+User=root
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+MemoryMax=64M
+
+[Install]
+WantedBy=multi-user.target

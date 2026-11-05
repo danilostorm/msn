@@ -1,0 +1,21 @@
+[Unit]
+Description=Storm MSN PlayStor SNES activity catalog (local-only, no ROM proxy)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/node /usr/local/libexec/storm-msn-ha/playstor-snes.js
+Restart=on-failure
+RestartSec=3
+User=root
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/var/lib/storm-msn-ha/role.json
+PrivateTmp=true
+LimitNOFILE=1024
+MemoryMax=128M
+
+[Install]
+WantedBy=multi-user.target
