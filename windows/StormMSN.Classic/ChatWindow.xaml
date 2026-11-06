@@ -1,0 +1,85 @@
+<Window x:Class="StormMSN.Classic.ChatWindow"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="Conversa • Storm MSN Classic" Width="555" Height="630"
+ MinWidth="410" MinHeight="470" WindowStartupLocation="CenterOwner"
+ Background="White">
+ <Window.Resources>
+  <LinearGradientBrush x:Key="ChatSky" StartPoint="0,0" EndPoint="0,1">
+   <GradientStop Color="#9FEAFC" Offset="0"/><GradientStop Color="#E7F9FF" Offset="1"/>
+  </LinearGradientBrush>
+  <LinearGradientBrush x:Key="ChatBar" StartPoint="0,0" EndPoint="0,1">
+   <GradientStop Color="#FFFFFF" Offset="0"/><GradientStop Color="#D7F1F9" Offset="1"/>
+  </LinearGradientBrush>
+ </Window.Resources>
+ <Grid>
+  <Grid.RowDefinitions>
+   <RowDefinition Height="28"/><RowDefinition Height="93"/><RowDefinition Height="41"/>
+   <RowDefinition Height="*"/><RowDefinition Height="129"/><RowDefinition Height="23"/>
+  </Grid.RowDefinitions>
+  <Menu Grid.Row="0" Background="{StaticResource ChatBar}" FontSize="12">
+   <MenuItem Header="Arquivo"><MenuItem Header="Fechar conversa" Click="Close_Click"/></MenuItem>
+   <MenuItem Header="Ações"><MenuItem Header="Enviar foto..." Click="Photo_Click"/>
+     <MenuItem Header="Enviar arquivo..." Click="File_Click"/></MenuItem>
+   <MenuItem Header="Ferramentas"><MenuItem Header="Emoticons" Click="Emoji_Click"/></MenuItem>
+   <MenuItem Header="Ajuda"><MenuItem Header="Sobre a conversa" Click="Help_Click"/></MenuItem>
+  </Menu>
+  <Grid Grid.Row="1" Background="{StaticResource ChatSky}">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="76"/><ColumnDefinition Width="*"/><ColumnDefinition Width="62"/></Grid.ColumnDefinitions>
+   <Border Grid.Column="0" Margin="13,12" CornerRadius="8" BorderThickness="3"
+     BorderBrush="#7CE42C" Background="White" Padding="3">
+    <Grid Background="#37638B">
+     <Ellipse Width="19" Height="19" Fill="#B0E5F9" VerticalAlignment="Center" Margin="0,-10,0,0"/>
+     <Ellipse Width="31" Height="23" Fill="#B0E5F9" VerticalAlignment="Center" Margin="0,18,0,0"/>
+     <Image x:Name="PeerAvatar" Stretch="UniformToFill"/>
+    </Grid>
+   </Border>
+   <StackPanel Grid.Column="1" VerticalAlignment="Center">
+    <TextBlock x:Name="PeerName" FontSize="19" FontWeight="SemiBold" Foreground="#284A68" TextTrimming="CharacterEllipsis"/>
+    <TextBlock x:Name="PeerStatus" FontSize="12.5" Foreground="#497A34" Margin="0,5,0,0"/>
+    <TextBlock x:Name="PeerEmail" FontSize="11" Foreground="#688E9E" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
+   </StackPanel>
+   <Border Grid.Column="2" BorderBrush="#7DB7D5" BorderThickness="1" CornerRadius="7"
+     Margin="8,16,12,16" Background="#F7FDFF">
+    <TextBlock Text="☺" FontSize="28" Foreground="#4A9FCC" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+   </Border>
+  </Grid>
+  <Grid Grid.Row="2" Background="{StaticResource ChatBar}">
+   <StackPanel Orientation="Horizontal" Margin="9,5">
+    <Button Content="✉  Mensagem" Margin="3,0" ToolTip="Conversa textual" IsEnabled="False"/>
+    <Button Content="▣  Fotos" Margin="3,0" Click="Photo_Click"/>
+    <Button Content="▤  Arquivos" Margin="3,0" Click="File_Click"/>
+    <Button Content="☏  Chamada" Margin="3,0" Click="Call_Click"/>
+    <Button Content="☺" Margin="3,0" Click="Emoji_Click"/>
+   </StackPanel>
+  </Grid>
+  <Border Grid.Row="3" Margin="9,9,9,0" Background="White" BorderBrush="#B9D3DF" BorderThickness="1">
+   <ScrollViewer x:Name="HistoryScroller" VerticalScrollBarVisibility="Auto">
+    <StackPanel x:Name="HistoryItems" Margin="9,9,9,8"/>
+   </ScrollViewer>
+  </Border>
+  <Grid Grid.Row="4" Margin="9,8,9,6">
+   <Grid.RowDefinitions><RowDefinition Height="24"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+   <StackPanel Grid.Row="0" Orientation="Horizontal">
+    <Button Content="☺  Emoticons" Click="Emoji_Click" Background="Transparent" BorderThickness="0" Foreground="#2383AD"/>
+    <Button Content="▣  Foto" Click="Photo_Click" Background="Transparent" BorderThickness="0" Foreground="#2383AD"/>
+    <Button Content="▤  Arquivo" Click="File_Click" Background="Transparent" BorderThickness="0" Foreground="#2383AD"/>
+    <TextBlock x:Name="ChatMode" Text="MSNP7 • Chat clássico" Foreground="#8EA5B2" FontSize="10"
+        Margin="10,4,0,0"/>
+   </StackPanel>
+   <Grid Grid.Row="1">
+    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="87"/></Grid.ColumnDefinitions>
+    <TextBox x:Name="Compose" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+      Margin="0,3,8,0" Padding="8,5" BorderBrush="#9FC6DB" KeyDown="Compose_KeyDown"/>
+    <Button x:Name="SendButton" Grid.Column="1" Content="Enviar" Height="36"
+      HorizontalAlignment="Stretch" VerticalAlignment="Bottom"
+      BorderBrush="#3298BB" BorderThickness="1.2" Background="#EAF8FF" Click="Send_Click"/>
+   </Grid>
+  </Grid>
+  <Border Grid.Row="5" Background="{StaticResource ChatBar}">
+   <TextBlock Text="Windows Live Messenger • estilo 2009 / Storm MSN"
+     HorizontalAlignment="Center" VerticalAlignment="Center"
+     FontSize="10" Foreground="#5B8599"/>
+  </Border>
+ </Grid>
+</Window>

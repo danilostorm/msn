@@ -1,0 +1,38 @@
+name: Storm MSN Classic Windows preview
+
+on:
+  push:
+    branches:
+      - feat/stormmsn-windows-parallel
+    paths:
+      - 'windows/StormMSN.Classic/**'
+      - '.github/workflows/stormmsn-windows-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore
+        run: dotnet restore windows/StormMSN.Classic/StormMSN.Classic.csproj
+      - name: Build WPF
+        run: dotnet build windows/StormMSN.Classic/StormMSN.Classic.csproj --configuration Release --no-restore
+      - name: Publish portable Windows x64
+        run: dotnet publish windows/StormMSN.Classic/StormMSN.Classic.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o out
+      - name: Create ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "out/*" -DestinationPath "StormMSN-Classic-Windows-x64-v0.1-preview.zip" -CompressionLevel Optimal
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StormMSN-Classic-Windows-x64-v0.1-preview
+          path: StormMSN-Classic-Windows-x64-v0.1-preview.zip
+          retention-days: 30

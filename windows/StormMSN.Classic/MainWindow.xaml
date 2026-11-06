@@ -1,0 +1,231 @@
+<Window x:Class="StormMSN.Classic.MainWindow"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="Windows Live Messenger — Storm MSN" Width="336" Height="705"
+ MinWidth="310" MinHeight="570" WindowStartupLocation="CenterScreen"
+ WindowStyle="None" ResizeMode="CanResize" Background="#FFFFFF">
+ <Window.Resources>
+  <LinearGradientBrush x:Key="Aero" StartPoint="0,0" EndPoint="0,1">
+   <GradientStop Color="#FBFEFF" Offset="0"/>
+   <GradientStop Color="#DDEAF3" Offset="1"/>
+  </LinearGradientBrush>
+  <LinearGradientBrush x:Key="Sky" StartPoint="0,0" EndPoint="0,1">
+   <GradientStop Color="#60CCE2" Offset="0"/>
+   <GradientStop Color="#B6F3FF" Offset="1"/>
+  </LinearGradientBrush>
+  <LinearGradientBrush x:Key="Footer" StartPoint="0,0" EndPoint="0,1">
+   <GradientStop Color="#FFFFFF" Offset="0"/>
+   <GradientStop Color="#CCF5FF" Offset="1"/>
+  </LinearGradientBrush>
+  <Style x:Key="Link" TargetType="Button">
+   <Setter Property="Foreground" Value="#007AA9"/>
+   <Setter Property="Background" Value="Transparent"/>
+   <Setter Property="BorderThickness" Value="0"/>
+   <Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="Padding" Value="2"/>
+  </Style>
+ </Window.Resources>
+ <Border BorderBrush="#8FAFBF" BorderThickness="1">
+ <Grid>
+  <Grid.RowDefinitions>
+   <RowDefinition Height="28"/><RowDefinition Height="26"/>
+   <RowDefinition Height="*"/><RowDefinition Height="35"/>
+  </Grid.RowDefinitions>
+  <!-- Tiny Windows Aero title bar, kept independent of modern features -->
+  <Grid Grid.Row="0" Background="{StaticResource Aero}" MouseLeftButtonDown="TitleDrag">
+   <Grid.ColumnDefinitions>
+    <ColumnDefinition Width="26"/><ColumnDefinition Width="*"/>
+    <ColumnDefinition Width="30"/><ColumnDefinition Width="30"/><ColumnDefinition Width="30"/>
+   </Grid.ColumnDefinitions>
+   <Grid Grid.Column="0" Margin="5,4,0,3">
+    <Ellipse Width="11" Height="11" Fill="#208FCA" HorizontalAlignment="Left" VerticalAlignment="Bottom"/>
+    <Ellipse Width="11" Height="11" Fill="#6BBE34" HorizontalAlignment="Right" VerticalAlignment="Top"/>
+    <Ellipse Width="8" Height="8" Fill="#80D2F0" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+   </Grid>
+   <TextBlock Grid.Column="1" VerticalAlignment="Center" FontFamily="Segoe UI" FontSize="11.5"
+      Text="Windows Live Messenger • Storm" TextTrimming="CharacterEllipsis" Foreground="#223541"/>
+   <Button Grid.Column="2" Content="─" BorderThickness="0" Background="Transparent" Click="Minimize_Click"/>
+   <Button Grid.Column="3" Content="□" BorderThickness="0" Background="Transparent" Click="Maximize_Click"/>
+   <Button Grid.Column="4" Content="✕" BorderThickness="0" Background="Transparent" Click="Close_Click"/>
+  </Grid>
+  <Menu Grid.Row="1" Padding="2,0" Background="{StaticResource Aero}" FontSize="12"
+        BorderBrush="#B4CED9" BorderThickness="0,0,0,1">
+   <MenuItem Header="_Arquivo">
+    <MenuItem Header="Entrar..." Click="ShowLogin_Click"/>
+    <MenuItem Header="Sair" Click="SignOut_Click"/>
+    <Separator/>
+    <MenuItem Header="Fechar janela" Click="Close_Click"/>
+   </MenuItem>
+   <MenuItem Header="_Contatos">
+    <MenuItem Header="Adicionar contato..." Click="AddContact_Click"/>
+    <MenuItem Header="Atualizar lista" Click="RefreshContacts_Click"/>
+   </MenuItem>
+   <MenuItem Header="_Ações">
+    <MenuItem Header="Enviar mensagem" Click="StartConversation_Click"/>
+    <MenuItem Header="Meus jogos" Click="Games_Click"/>
+   </MenuItem>
+   <MenuItem Header="_Ferramentas">
+    <MenuItem Header="Meu estado" Click="Status_Click"/>
+    <MenuItem Header="Configurações" Click="Settings_Click"/>
+   </MenuItem>
+   <MenuItem Header="Aj_uda">
+    <MenuItem Header="Sobre o Storm MSN Classic" Click="About_Click"/>
+   </MenuItem>
+  </Menu>
+  <Grid Grid.Row="2" x:Name="LoginLayer" Background="White">
+   <Grid.RowDefinitions>
+    <RowDefinition Height="160"/><RowDefinition Height="*"/>
+   </Grid.RowDefinitions>
+   <!-- Nostalgic cyan sky and green hillside -->
+   <Grid Grid.Row="0" ClipToBounds="False">
+    <Border VerticalAlignment="Top" Height="92" Background="{StaticResource Sky}">
+     <Canvas ClipToBounds="True">
+      <Path Fill="#B7ED4D" Data="M -20,88 C 65,24 160,57 345,89 L 345,120 L -20,120 Z"/>
+      <Path Fill="#6CC500" Data="M -20,95 C 70,51 208,77 345,81 L 345,120 L -20,120 Z"/>
+      <Ellipse Canvas.Left="21" Canvas.Top="73" Width="7" Height="7" Fill="White"/>
+      <Ellipse Canvas.Left="270" Canvas.Top="78" Width="5" Height="5" Fill="White"/>
+      <Ellipse Canvas.Left="287" Canvas.Top="65" Width="3" Height="3" Fill="White"/>
+     </Canvas>
+    </Border>
+    <Border Width="106" Height="110" VerticalAlignment="Bottom"
+       CornerRadius="11" BorderBrush="#4C93AE" BorderThickness="3" Padding="4"
+       Background="#F2FEFF" Effect="{x:Null}">
+     <Border CornerRadius="6" Background="#153D61" ClipToBounds="True">
+      <Grid>
+       <Ellipse Width="40" Height="40" Fill="#8FD5F3" VerticalAlignment="Center" Margin="0,-15,0,0"/>
+       <Ellipse Width="65" Height="48" Fill="#8FD5F3" VerticalAlignment="Bottom" Margin="0,0,0,-13"/>
+       <Image x:Name="LoginAvatar" Stretch="UniformToFill"/>
+      </Grid>
+     </Border>
+    </Border>
+   </Grid>
+   <Grid Grid.Row="1" Margin="20,0">
+    <Grid.RowDefinitions>
+     <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+     <RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+    <TextBlock Grid.Row="0" HorizontalAlignment="Center" Margin="0,7,0,22"
+     Foreground="#60C7E8" FontSize="20" Text="Bem-vindo novamente!"/>
+    <StackPanel Grid.Row="1" MaxWidth="274" HorizontalAlignment="Stretch">
+     <TextBox x:Name="EmailInput" Height="31" ToolTip="E-mail da sua conta Storm MSN"/>
+     <PasswordBox x:Name="PasswordInput" Height="31" ToolTip="Senha da conta" KeyDown="Password_KeyDown"/>
+     <StackPanel Orientation="Horizontal" Margin="0,6,0,16">
+      <TextBlock Text="Entrar como:" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0"/>
+      <Ellipse Width="9" Height="9" Fill="#43D31B" Margin="0,0,6,0"/>
+      <ComboBox x:Name="LoginStatus" SelectedIndex="0" BorderThickness="0" Background="Transparent"
+        FontSize="12" MinWidth="117">
+       <ComboBoxItem Content="Disponível" Tag="NLN"/>
+       <ComboBoxItem Content="Ocupado" Tag="BSY"/>
+       <ComboBoxItem Content="Ausente" Tag="AWY"/>
+       <ComboBoxItem Content="Aparecer offline" Tag="HDN"/>
+      </ComboBox>
+     </StackPanel>
+     <Button x:Name="LoginButton" Content="Entrar" Width="88" Height="27"
+         HorizontalAlignment="Center" BorderBrush="#108BAF" BorderThickness="1.4"
+         Background="#F6FBFE" Click="Login_Click"/>
+     <CheckBox x:Name="RememberEmail" Content="Lembrar meu e-mail" IsChecked="True"
+       Margin="0,16,0,0" FontSize="11.5" Foreground="#5D7582"/>
+     <TextBlock x:Name="LoginError" Margin="0,10" TextWrapping="Wrap"
+       Foreground="#B23131" FontSize="11.5"/>
+     <Button Content="Criar uma conta Storm MSN" Style="{StaticResource Link}"
+       HorizontalAlignment="Center" Margin="0,2" Click="Register_Click"/>
+    </StackPanel>
+    <StackPanel Grid.Row="2" x:Name="SignInOverlay" Visibility="Collapsed"
+         Margin="0,0,0,0" Background="White" VerticalAlignment="Top">
+     <TextBlock Text="Entrando..." FontSize="19" Foreground="#62D1EA"
+          Margin="0,0,0,32" HorizontalAlignment="Center"/>
+     <Grid Width="66" Height="61" HorizontalAlignment="Center">
+      <Grid x:Name="SpinnerPeople" RenderTransformOrigin="0.5,0.5">
+       <Grid.RenderTransform><RotateTransform Angle="0"/></Grid.RenderTransform>
+       <Ellipse Fill="#83D040" Width="16" Height="16" Margin="-18,-9,0,0"/>
+       <Ellipse Fill="#17A0D3" Width="19" Height="19" Margin="17,10,0,0"/>
+       <Ellipse Fill="#5AC510" Width="24" Height="18" Margin="-18,13,0,0"/>
+       <Ellipse Fill="#217ABF" Width="27" Height="21" Margin="16,29,0,0"/>
+      </Grid>
+     </Grid>
+     <Button Content="Cancelar" Width="82" Margin="0,20,0,0" Click="CancelLogin_Click"/>
+    </StackPanel>
+   </Grid>
+  </Grid>
+  <!-- Contact list, visually separate from the login state -->
+  <Grid Grid.Row="2" x:Name="ContactsLayer" Visibility="Collapsed" Background="#FCFFFF">
+   <Grid.RowDefinitions>
+    <RowDefinition Height="102"/><RowDefinition Height="48"/>
+    <RowDefinition Height="*"/><RowDefinition Height="146"/>
+   </Grid.RowDefinitions>
+   <Grid Grid.Row="0" ClipToBounds="True" Background="{StaticResource Sky}">
+    <Canvas>
+     <Path Fill="#AEEA3C" Data="M -20,93 C 72,29 184,59 360,89 L 360,120 L -20,120Z"/>
+     <Path Fill="#68C50E" Data="M -20,106 C 70,48 210,85 355,89 L355,120 L -20,120 Z"/>
+     <Ellipse Width="5" Height="5" Fill="White" Canvas.Left="150" Canvas.Top="78"/>
+     <Ellipse Width="5" Height="5" Fill="White" Canvas.Left="189" Canvas.Top="84"/>
+     <Ellipse Width="4" Height="4" Fill="White" Canvas.Left="255" Canvas.Top="83"/>
+    </Canvas>
+    <Border Width="66" Height="73" HorizontalAlignment="Left" VerticalAlignment="Center"
+     Margin="16,0,0,0" BorderBrush="#67D934" BorderThickness="4" CornerRadius="9"
+     Background="White" Padding="3">
+     <Border Background="#28577D" CornerRadius="4">
+      <Grid>
+       <Ellipse Width="22" Height="22" Fill="#C2E9FB" Margin="0,-12,0,0"/>
+       <Ellipse Width="35" Height="25" Fill="#B2DEF3" Margin="0,23,0,0"/>
+       <Image x:Name="SelfAvatar" Stretch="UniformToFill"/>
+      </Grid>
+     </Border>
+    </Border>
+    <StackPanel Margin="94,16,6,0" VerticalAlignment="Top">
+     <TextBlock x:Name="MyDisplay" Text="Meu Messenger" FontSize="18"
+          Foreground="#204B68" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+     <ComboBox x:Name="ContactStatus" SelectedIndex="0" Background="Transparent"
+          BorderThickness="0" FontSize="12.5" Foreground="#347A27"
+          HorizontalAlignment="Left" SelectionChanged="ContactStatus_Changed">
+       <ComboBoxItem Content="● Disponível" Tag="NLN"/>
+       <ComboBoxItem Content="● Ocupado" Tag="BSY"/>
+       <ComboBoxItem Content="● Ausente" Tag="AWY"/>
+       <ComboBoxItem Content="● Aparecer offline" Tag="HDN"/>
+     </ComboBox>
+     <TextBlock x:Name="MyEmail" FontSize="10" Foreground="#58798D" TextTrimming="CharacterEllipsis"/>
+    </StackPanel>
+   </Grid>
+   <Grid Grid.Row="1" Background="#EDF9FD" Margin="0,0,0,3">
+    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="34"/>
+      <ColumnDefinition Width="34"/><ColumnDefinition Width="34"/></Grid.ColumnDefinitions>
+    <TextBox x:Name="SearchInput" Grid.Column="0" Margin="11,8,4,8" Padding="7,5"
+       TextChanged="Search_Changed" ToolTip="Pesquisar contatos"/>
+    <Button Grid.Column="1" ToolTip="Adicionar contato" Background="Transparent" BorderThickness="0"
+       Content="♧+" FontSize="16" Foreground="#0878A6" Click="AddContact_Click"/>
+    <Button Grid.Column="2" ToolTip="Jogos Playstor" Background="Transparent" BorderThickness="0"
+       Content="🎮" FontSize="14" Click="Games_Click"/>
+    <Button Grid.Column="3" ToolTip="Configurações" Background="Transparent" BorderThickness="0"
+       Content="⚙" FontSize="17" Foreground="#0878A6" Click="Settings_Click"/>
+   </Grid>
+   <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <StackPanel x:Name="ContactItems" Margin="9,12,9,5"/>
+   </ScrollViewer>
+   <Grid Grid.Row="3" Background="{StaticResource Footer}">
+    <Grid.RowDefinitions><RowDefinition Height="44"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="17,14,8,0">
+     <TextBlock Text="Novidades" Foreground="#1771A1" FontSize="13"/>
+     <TextBlock Text="  Não há novas atividades." Foreground="#839CAA" FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+    </StackPanel>
+    <Border Grid.Row="1" Margin="16,4,16,13" BorderBrush="#3182A4" BorderThickness="1">
+     <Border.Background>
+      <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+       <GradientStop Color="#B6F0F9" Offset="0"/><GradientStop Color="#338FB5" Offset=".56"/><GradientStop Color="#123E74" Offset="1"/>
+      </LinearGradientBrush>
+     </Border.Background>
+     <Grid>
+      <TextBlock Text="✦ Windows Live Messenger" Foreground="White" FontSize="15"
+        VerticalAlignment="Center" HorizontalAlignment="Center"/>
+      <TextBlock Text="Storm MSN" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+         Margin="0,0,8,5" Foreground="#E8FFFF" FontSize="9"/>
+     </Grid>
+    </Border>
+   </Grid>
+  </Grid>
+  <Grid Grid.Row="3" Background="{StaticResource Footer}" Name="FooterBar">
+   <TextBlock Text="Declaração de Privacidade  |  Status do servidor"
+      Foreground="#006CB3" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+  </Grid>
+ </Grid>
+ </Border>
+</Window>
