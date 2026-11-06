@@ -233,3 +233,59 @@ Pro. OpenWA é um gateway para WhatsApp, não um substituto do protocolo MSN.
   `376262a5c131986323b359caddd8ba9eb68d6f3f9a1ff89635ae13aed86c25d4`,
   idêntico à release 0.6.0. Link Playstor confirmado HTTP 200 e digest
   idêntico ao arquivo original.
+
+## Correção de mídia v0.7.1 (build 8)
+
+Distribuição incremental sobre a release Android oficial v0.7.0 (build 7).
+Usa build flags `--build-name=0.7.1 --build-number=8` para isolar
+esta correção do desenvolvimento ainda não publicado da versão 0.8.0.
+Manter `buildNumber > 8` na futura versão 0.8.
+
+### Sessões de avatar e áudio
+- Problema diagnosticado: a API `/api/mobile/session` criava token
+  em `auth_service` **em memória**, com expiração em 12 horas.
+  Um reinício do container invalidava o token, sem encerrar a sessão
+  MSNP7/WebSocket. Resultado: o usuário seguia online mas não podia
+  alterar avatar ou publicar áudio.
+- Corrigido: emissão de credenciais de mídia em
+  `login_auth_service` **persistente em SQLite**, com validade de 30 dias.
+  A API `POST /api/mobile/session/refresh` gira a credencial e invalida
+  o token anterior. `POST /api/mobile/session/logout` revoga a credencial.
+  Tokens em memória antigos continuam aceitos temporariamente quando
+  ainda existentes, mas perdem-se se já houve reinício.
+- Aplicativo: ao receber 401, tenta renovar o token; se necessário, usa
+  credenciais armazenadas somente se o jogador optou por salvar a senha;
+  caso contrário mostra campo de confirmação de senha sem desconectar
+  a conversa. Falhas de autenticação não são descritas incorretamente
+  como falhas de imagem. Sair revoga o token persistente quando possível.
+- Para contas que mantiveram o app 0.7.0 aberto enquanto o servidor
+  reiniciou, será necessária **uma reautenticação** após atualizar.
+
+### Gravações enviadas mas impossíveis de reproduzir
+- Foi inspecionado um M4A real de 4.389 bytes: o cabeçalho
+  `mdat` de 64 bits declarava 32.191 bytes, ou seja, a gravação
+  estava truncada e era impossível reproduzi-la.
+- Android agora aguarda a finalização integral da escrita do gravador
+  (`record.stop`) e verifica os tamanhos das caixas ISO BMFF `ftyp`,
+  `moov`, `mdat`, incluindo tamanhos estendidos de 64 bits.
+  Se permanecer incompleto, **não envia** o link e pede nova gravação.
+- O backend realiza a mesma verificação antes de aceitar uploads.
+  Retorna HTTP 410 para arquivos antigos efetivamente truncados.
+- Player agora baixa a mídia HTTPS para arquivo `.m4a` temporário
+  e usa `just_audio.setFilePath`, evitando problemas de reprodução
+  pelo URL sem extensão. Mostra erro específico para arquivo expirado,
+  inexistente, incompleto e indisponibilidade de rede. Arquivos locais
+  temporários são removidos ao fechar a conversa.
+- Áudios já truncados não podem ser restaurados; devem ser reenviados.
+
+### Verificações
+- API real em ambiente de produção: login com conta QA temporária,
+  token legível por uma nova instância do serviço SQLite, upload de foto,
+  renovação, invalidação do token anterior, remoção de avatar, rejeição
+  de áudio MP4 incompleto, envio e download de mídia estruturalmente
+  íntegra e revogação na saída. Conta e mídias QA apagadas ao final.
+- Todos os 13 testes automatizados do Flutter passaram, incluindo os
+  novos cenários de tamanho estendido de M4A.
+- A reprodução no aparelho Android real ainda deve ser validada após
+  instalar o APK, porque os testes não substituem o hardware.
+

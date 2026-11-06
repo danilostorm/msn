@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
@@ -7,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
 import 'mobile_account.dart';
+import 'storm_m4a.dart';
 
 /// Optional voice notes on top of the original MSNP7 text channel.
 ///
@@ -16,11 +18,13 @@ class StormVoiceRecorder extends StatefulWidget {
   const StormVoiceRecorder({
     super.key,
     required this.account,
+    required this.onUploadVoice,
     required this.sendText,
     required this.onError,
   });
 
   final StormMobileAccount? account;
+  final Future<String> Function(Uint8List) onUploadVoice;
   final Future<void> Function(String) sendText;
   final void Function(String) onError;
 
@@ -30,7 +34,6 @@ class StormVoiceRecorder extends StatefulWidget {
 
 class _StormVoiceRecorderState extends State<StormVoiceRecorder> {
   final _recorder = AudioRecorder();
-  final _api = const StormMobileApi();
   Timer? _tick;
   bool _recording = false;
   bool _busy = false;
@@ -92,6 +95,25 @@ class _StormVoiceRecorderState extends State<StormVoiceRecorder> {
     }
   }
 
+  Future<Uint8List> _readFinalizedRecording(String path) async {
+    // Wait for the MP4 mdat payload after the Android recorder stops.
+    final file = File(path);
+    for (var attempt = 0; attempt < 25; attempt++) {
+      if (await file.exists()) {
+        final size = await file.length();
+        if (size > 3 * 1024 * 1024) {
+          throw StateError('A gravação excedeu 3 MB.');
+        }
+        if (size >= 128) {
+          final bytes = await file.readAsBytes();
+          if (isCompleteStormM4a(bytes)) return bytes;
+        }
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
+    throw StateError('O Android não finalizou o áudio. Grave novamente.');
+  }
+
   Future<void> _finish() async {
     if (!_recording || _busy) return;
     _tick?.cancel();
@@ -104,10 +126,8 @@ class _StormVoiceRecorderState extends State<StormVoiceRecorder> {
         widget.onError('Grave pelo menos um segundo de áudio.');
         return;
       }
-      final bytes = await File(path).readAsBytes();
-      final account = widget.account;
-      if (account == null) throw StateError('Sua sessão expirou.');
-      final url = await _api.uploadVoice(account.token, bytes);
+      final bytes = await _readFinalizedRecording(path);
+      final url = await widget.onUploadVoice(bytes);
       await widget.sendText('🎤 Mensagem de voz: ' + url);
     } catch (error) {
       widget.onError('Falha ao enviar voz: ' + error.toString());
@@ -189,6 +209,7 @@ class StormVoiceMessage extends StatefulWidget {
 class _StormVoiceMessageState extends State<StormVoiceMessage> {
   final _player = AudioPlayer();
   StreamSubscription<ProcessingState>? _stateSubscription;
+  String? _cachedAudioPath;
   bool _playing = false;
   bool _loading = false;
 
@@ -198,16 +219,80 @@ class _StormVoiceMessageState extends State<StormVoiceMessage> {
     _stateSubscription = _player.processingStateStream.listen((state) {
       if (state == ProcessingState.completed && mounted) {
         setState(() => _playing = false);
-        _player.seek(Duration.zero);
+        unawaited(_player.seek(Duration.zero));
       }
     });
+  }
+
+  Future<String> _downloadForPlayback() async {
+    final prior = _cachedAudioPath;
+    if (prior != null && await File(prior).exists()) return prior;
+    final uri = Uri.tryParse(widget.url);
+    if (uri == null ||
+        uri.scheme != 'https' ||
+        uri.host != 'msn.hoststorm.com.br' ||
+        !RegExp(r'^/api/mobile/voice/[0-9a-f]{48}$').hasMatch(uri.path)) {
+      throw StateError('Link de áudio inválido.');
+    }
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 12);
+    try {
+      final request = await client
+          .getUrl(uri)
+          .timeout(const Duration(seconds: 15));
+      final response = await request.close().timeout(
+        const Duration(seconds: 20),
+      );
+      if (response.statusCode == 404) {
+        throw StateError('Esta mensagem de voz não está mais disponível.');
+      }
+      if (response.statusCode == 410) {
+        throw StateError(
+          'Esta gravação chegou incompleta. Peça para reenviar.',
+        );
+      }
+      if (response.statusCode != 200) {
+        throw StateError('Servidor de áudio indisponível.');
+      }
+      final content = BytesBuilder(copy: false);
+      await for (final chunk in response.timeout(const Duration(seconds: 20))) {
+        content.add(chunk);
+        if (content.length > 3 * 1024 * 1024) {
+          throw StateError('Áudio acima do limite permitido.');
+        }
+      }
+      final bytes = content.takeBytes();
+      if (!isCompleteStormM4a(bytes)) {
+        throw StateError('Áudio incompleto. Peça para reenviar.');
+      }
+      final directory = await getTemporaryDirectory();
+      final saved = File(
+        directory.path +
+            '/storm_play_' +
+            DateTime.now().microsecondsSinceEpoch.toString() +
+            '.m4a',
+      );
+      await saved.writeAsBytes(bytes, flush: true);
+      _cachedAudioPath = saved.path;
+      return saved.path;
+    } finally {
+      client.close(force: true);
+    }
   }
 
   @override
   void dispose() {
     _stateSubscription?.cancel();
     unawaited(_player.dispose());
+    final path = _cachedAudioPath;
+    if (path != null) unawaited(_deleteCachedFile(path));
     super.dispose();
+  }
+
+  Future<void> _deleteCachedFile(String path) async {
+    try {
+      await File(path).delete();
+    } catch (_) {}
   }
 
   Future<void> _toggle() async {
@@ -219,23 +304,28 @@ class _StormVoiceMessageState extends State<StormVoiceMessage> {
         return;
       }
       setState(() => _loading = true);
-      if (_player.duration == null) await _player.setUrl(widget.url);
+      if (_player.duration == null) {
+        final local = await _downloadForPlayback();
+        await _player.setFilePath(local);
+      }
       if (mounted)
         setState(() {
           _loading = false;
           _playing = true;
         });
       await _player.play();
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _loading = false;
-          _playing = false;
-        });
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          const SnackBar(content: Text('Áudio indisponível ou expirado.')),
-        );
-      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _playing = false;
+      });
+      final String message = error is StateError
+          ? error.message.toString()
+          : 'Falha ao reproduzir o áudio neste aparelho.';
+      ScaffoldMessenger.maybeOf(
+        context,
+      )?.showSnackBar(SnackBar(content: Text(message)));
     }
   }
 

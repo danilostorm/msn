@@ -554,32 +554,105 @@ class _StormMsnAppState extends State<StormMsnApp> with WidgetsBindingObserver {
     }
   }
 
+  Future<StormMobileAccount> _refreshMediaSession(
+    StormMobileAccount current,
+  ) async {
+    StormMobileAccount? fresh;
+    try {
+      fresh = await _mobileApi.renewSession(current.token);
+    } on StormSessionExpired {
+      // The old nonpersistent token was lost after a Docker restart.
+    }
+    if (fresh == null) {
+      final identifier = await _secureStorage.read(key: 'storm_login_id');
+      final savedPassword = await _secureStorage.read(
+        key: 'storm_login_password',
+      );
+      if (identifier != null &&
+          savedPassword != null &&
+          savedPassword.isNotEmpty) {
+        fresh = await _mobileApi.signIn(identifier, savedPassword);
+      } else {
+        final ui = _scaffoldKey.currentContext;
+        if (ui == null || !mounted) {
+          throw StateError(
+            'Abra novamente o aplicativo para atualizar a sessão.',
+          );
+        }
+        var enteredPassword = '';
+        final password = await showDialog<String>(
+          context: ui,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Confirme sua senha'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Sua conexão com o MSN continua ativa. Para alterar a foto '
+                  'ou enviar áudio, confirme a senha uma única vez.',
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  autofocus: true,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: 'Senha do MSN'),
+                  onChanged: (value) => enteredPassword = value,
+                  onSubmitted: (value) {
+                    if (value.isNotEmpty) Navigator.pop(dialogContext, value);
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(dialogContext, enteredPassword),
+                child: const Text('Confirmar'),
+              ),
+            ],
+          ),
+        );
+        if (password == null || password.isEmpty) {
+          throw StateError('Confirmação cancelada.');
+        }
+        fresh = await _mobileApi.signIn(current.email, password);
+      }
+    }
+    if (fresh.email.toLowerCase() != current.email.toLowerCase()) {
+      throw StateError('A conta autenticada mudou. Entre novamente.');
+    }
+    if (mounted) setState(() => _account = fresh);
+    return fresh;
+  }
+
+  Future<T> _withMediaSession<T>(
+    Future<T> Function(StormMobileAccount) operation,
+  ) async {
+    final account = _account;
+    if (account == null) throw StateError('Faça login no Storm MSN.');
+    try {
+      return await operation(account);
+    } on StormSessionExpired {
+      final refreshed = await _refreshMediaSession(account);
+      return await operation(refreshed);
+    }
+  }
+
   Future<void> _uploadAvatarWithRefresh(
     StormMobileAccount account,
     Uint8List bytes,
-  ) async {
-    try {
-      await _mobileApi.uploadAvatar(account.token, bytes);
-    } catch (error) {
-      final message = error.toString().toLowerCase();
-      if (!message.contains('sessão expirou')) rethrow;
-      // Refresh the avatar token only if the user chose encrypted storage.
-      final identifier = await _secureStorage.read(key: 'storm_login_id');
-      final password = await _secureStorage.read(key: 'storm_login_password');
-      if (identifier == null ||
-          password == null ||
-          identifier.isEmpty ||
-          password.isEmpty) {
-        rethrow;
-      }
-      final refreshed = await _mobileApi.signIn(identifier, password);
-      if (refreshed.email.toLowerCase() != account.email.toLowerCase()) {
-        throw StateError('A conta autenticada mudou; saia e entre novamente.');
-      }
-      _account = refreshed;
-      await _mobileApi.uploadAvatar(refreshed.token, bytes);
-    }
-  }
+  ) => _withMediaSession<void>(
+    (current) => _mobileApi.uploadAvatar(current.token, bytes),
+  );
+
+  Future<String> _uploadVoiceWithRefresh(Uint8List bytes) =>
+      _withMediaSession<String>(
+        (current) => _mobileApi.uploadVoice(current.token, bytes),
+      );
 
   Future<void> _showAvatarOptions() async {
     final account = _account;
@@ -641,7 +714,9 @@ class _StormMsnAppState extends State<StormMsnApp> with WidgetsBindingObserver {
           _toast('Foto de perfil atualizada.');
         }
       } else if (action == 'delete') {
-        await _mobileApi.removeAvatar(account.token);
+        await _withMediaSession<void>(
+          (current) => _mobileApi.removeAvatar(current.token),
+        );
         if (mounted) {
           setState(
             () => _avatarVersion = DateTime.now().millisecondsSinceEpoch,
@@ -688,6 +763,14 @@ class _StormMsnAppState extends State<StormMsnApp> with WidgetsBindingObserver {
     _cancelledLogin = true;
     _keepOnline = false;
     await StormBackgroundService.stop();
+    final mediaToken = _account?.token;
+    if (mediaToken != null) {
+      try {
+        await _mobileApi.revokeSession(mediaToken);
+      } catch (_) {
+        // Signing out locally is more important than network availability.
+      }
+    }
     await client.signOut();
     _account = null;
     _password.clear();
@@ -1386,6 +1469,7 @@ class _StormMsnAppState extends State<StormMsnApp> with WidgetsBindingObserver {
       client: client,
       who: who,
       account: _account,
+      onUploadVoice: _uploadVoiceWithRefresh,
       showBack: !wide,
       onBack: () => setState(() => selected = null),
       onGames: () => _openExternal(
@@ -1404,6 +1488,7 @@ class _ConversationPanel extends StatefulWidget {
     required this.client,
     required this.who,
     required this.account,
+    required this.onUploadVoice,
     required this.showBack,
     required this.onBack,
     required this.onGames,
@@ -1413,6 +1498,7 @@ class _ConversationPanel extends StatefulWidget {
   final MsnClient client;
   final MsnBuddy who;
   final StormMobileAccount? account;
+  final Future<String> Function(Uint8List) onUploadVoice;
   final bool showBack;
   final VoidCallback onBack, onGames;
   final void Function(String) onUnavailable, onError;
@@ -1705,6 +1791,7 @@ class _ConversationPanelState extends State<_ConversationPanel> {
               ),
               StormVoiceRecorder(
                 account: widget.account,
+                onUploadVoice: widget.onUploadVoice,
                 onError: widget.onError,
                 sendText: (message) async {
                   await widget.client.sendMessage(widget.who.email, message);

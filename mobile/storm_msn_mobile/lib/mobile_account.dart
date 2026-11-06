@@ -4,6 +4,12 @@ import 'dart:typed_data';
 
 import 'msn_protocol.dart';
 
+class StormSessionExpired implements Exception {
+  const StormSessionExpired();
+  @override
+  String toString() => 'Sessão expirada. Confirme sua senha.';
+}
+
 class StormMobileAccount {
   const StormMobileAccount({
     required this.email,
@@ -36,6 +42,27 @@ class StormMobileApi {
       username: result['username'] as String,
       token: result['token'] as String,
     );
+  }
+
+  Future<StormMobileAccount> renewSession(String token) async {
+    final response = await _send(
+      'POST',
+      '/api/mobile/session/refresh',
+      token: token,
+    );
+    return StormMobileAccount(
+      email: response['email'] as String,
+      username: response['username'] as String,
+      token: response['token'] as String,
+    );
+  }
+
+  Future<void> revokeSession(String token) async {
+    try {
+      await _send('POST', '/api/mobile/session/logout', token: token);
+    } on StormSessionExpired {
+      // Expired credentials are already invalid.
+    }
   }
 
   Future<void> uploadAvatar(String token, Uint8List image) async {
@@ -102,17 +129,18 @@ class StormMobileApi {
           .timeout(const Duration(seconds: 15));
       if (response.statusCode != 200) {
         if (response.statusCode == 401) {
-          throw StateError(
-            token == null
-                ? 'Usuário, e-mail ou senha inválidos.'
-                : 'Sua sessão expirou. Saia e entre novamente para atualizar a foto.',
-          );
+          if (token != null) throw const StormSessionExpired();
+          throw StateError('Usuário, e-mail ou senha inválidos.');
         }
         if (response.statusCode == 403) {
           throw StateError('Operação não autorizada para esta conta.');
         }
         if (response.statusCode == 400 || response.statusCode == 415) {
-          throw StateError('Imagem inválida. Use JPG, PNG ou WebP.');
+          throw StateError(
+            audio != null
+                ? 'Gravação incompleta. Grave novamente.'
+                : 'Imagem inválida. Use JPG, PNG ou WebP.',
+          );
         }
         if (response.statusCode == 413) {
           throw StateError('Arquivo acima do limite de 4 MB.');

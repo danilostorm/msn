@@ -7,6 +7,7 @@ The bearer token is required for upload; download is capability-URL based.
 import os
 import re
 import secrets
+import struct
 import time
 from pathlib import Path
 
@@ -21,10 +22,41 @@ VOICE_RE = re.compile(r"^[a-f0-9]{48}$")
 
 
 def _valid_m4a(raw: bytes) -> bool:
-    # MP4 family: length followed by ftyp. Reject arbitrary files/HTML.
-    return (len(raw) >= 32 and raw[4:8] == b"ftyp"
-            and any(t in raw[8:32] for t in (b"M4A ", b"isom", b"mp42", b"M4B "))
-            and raw[:4] != b"\x00\x00\x00\x00")
+    """Reject truncated MP4/M4A. The old check accepted a file with 4 kB
+    on disk while its mdat box declared 32 kB, making playback impossible.
+    This is a structural check, not an AAC decoder.
+    """
+    if len(raw) < 128 or raw[4:8] != b"ftyp":
+        return False
+    if not any(t in raw[8:32] for t in (b"M4A ", b"isom", b"mp42", b"M4B ")):
+        return False
+    at = 0
+    moov = False
+    mdat = False
+    box_count = 0
+    while at < len(raw) and box_count < 256:
+        if len(raw) - at < 8:
+            return False
+        size32, kind = struct.unpack_from(">I4s", raw, at)
+        header = 8
+        if size32 == 1:
+            if len(raw) - at < 16:
+                return False
+            size = struct.unpack_from(">Q", raw, at + 8)[0]
+            header = 16
+        elif size32 == 0:
+            size = len(raw) - at
+        else:
+            size = size32
+        if size < header or at + size > len(raw):
+            return False
+        if kind == b"moov":
+            moov = size > 100
+        if kind == b"mdat":
+            mdat = size - header >= 128
+        at += size
+        box_count += 1
+    return at == len(raw) and moov and mdat
 
 
 async def upload_voice(req):
@@ -41,7 +73,9 @@ async def upload_voice(req):
         raise web.HTTPRequestEntityTooLarge(max_size=MAX_BYTES,
                                              actual_size=len(raw))
     if not _valid_m4a(raw):
-        raise web.HTTPBadRequest(text="Áudio M4A inválido.")
+        raise web.HTTPBadRequest(
+            text="Gravação incompleta. Aguarde finalizar e tente novamente."
+        )
     STORAGE.mkdir(mode=0o750, parents=True, exist_ok=True)
     key = secrets.token_hex(24)
     tmp = STORAGE / (key + ".tmp")
@@ -73,6 +107,11 @@ async def download_voice(req):
     filename = STORAGE / (key + ".m4a")
     if not filename.is_file() or time.time() - filename.stat().st_mtime > MAX_AGE_SECONDS:
         raise web.HTTPNotFound()
+    # Existing truncated files cannot be recovered; report accurately.
+    if not _valid_m4a(filename.read_bytes()):
+        raise web.HTTPGone(
+            text="Áudio antigo incompleto. Solicite uma nova gravação."
+        )
     return web.FileResponse(filename, headers={
         "Content-Type": "audio/mp4",
         "Content-Disposition": 'inline; filename="mensagem-de-voz.m4a"',

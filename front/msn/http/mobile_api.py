@@ -12,7 +12,7 @@ from . import avatar_shared
 from sqlalchemy import func
 
 from core.conn import Conn
-from core.db import User as DBUser
+from core.db import User as DBUser, LoginToken as DBLoginToken
 import settings
 
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+\-]{1,64}@[A-Za-z0-9.\-]{3,190}$")
@@ -38,9 +38,15 @@ def _authorized_user(req):
     token = auth[7:]
     if not re.fullmatch(r"[A-Za-z0-9._\-]{16,2048}", token):
         raise web.HTTPUnauthorized()
-    user_uuid = req.app["backend"].auth_service.get_token("storm-mobile", token)
-    if not user_uuid:
-        raise web.HTTPUnauthorized()
+    # Persisted login tokens survive Docker restarts. Older in-memory tokens
+    # are accepted during migration until their original expiry.
+    backend = req.app["backend"]
+    token_data = backend.login_auth_service.get_token("storm-mobile", token)
+    if token_data is None:
+        token_data = backend.auth_service.get_token("storm-mobile", token)
+    if not token_data:
+        raise web.HTTPUnauthorized(text="Sessão expirada. Autentique novamente.")
+    user_uuid = token_data[0] if isinstance(token_data, (list, tuple)) else token_data
     with Conn(settings.DB).session() as sess:
         user = sess.query(DBUser).filter(DBUser.uuid == user_uuid).one_or_none()
         if not user:
@@ -71,8 +77,10 @@ async def mobile_session(req):
     uuid = req.app["backend"].user_service.login(address, password)
     if not uuid:
         raise web.HTTPUnauthorized(text="Usuário, e-mail ou senha inválidos.")
-    ticket, _ = req.app["backend"].auth_service.create_token(
-        "storm-mobile", uuid, lifetime=43200
+    # Per-device HTTPS bearer session, persisted to SQLite instead of RAM.
+    # 30-day lifetime; the app can renew or reauthenticate without logout.
+    ticket, _ = req.app["backend"].login_auth_service.create_token(
+        "storm-mobile", [uuid], lifetime=30 * 86400
     )
     with Conn(settings.DB).session() as sess:
         user = sess.query(DBUser).filter(DBUser.uuid == uuid).one()
@@ -80,6 +88,40 @@ async def mobile_session(req):
     return web.json_response(
         {**profile, "token": ticket}, headers=RESP_HEADERS
     )
+
+
+async def mobile_refresh(req):
+    user = _authorized_user(req)
+    auth = req.headers.get("Authorization", "")
+    token = auth[7:]
+    backend = req.app["backend"]
+    ticket, _ = backend.login_auth_service.create_token(
+        "storm-mobile", [user["uuid"]], lifetime=30 * 86400
+    )
+    # Also revoke a pre-migration token from RAM during rotation.
+    backend.auth_service.pop_token('storm-mobile', token)
+    with Conn(settings.DB).session() as sess:
+        sess.query(DBLoginToken).filter(
+            DBLoginToken.token == token,
+            DBLoginToken.purpose == "storm-mobile",
+        ).delete()
+    return web.json_response(
+        {"email": user["email"], "username": user["username"],
+         "token": ticket},
+        headers=RESP_HEADERS,
+    )
+
+
+async def mobile_logout(req):
+    _authorized_user(req)
+    token = req.headers.get("Authorization", "")[7:]
+    req.app['backend'].auth_service.pop_token('storm-mobile', token)
+    with Conn(settings.DB).session() as sess:
+        sess.query(DBLoginToken).filter(
+            DBLoginToken.token == token,
+            DBLoginToken.purpose == "storm-mobile",
+        ).delete()
+    return web.json_response({"ok": True}, headers=RESP_HEADERS)
 
 
 async def mobile_profile(req):
@@ -146,6 +188,8 @@ async def avatar_delete(req):
 
 def register(app):
     app.router.add_post("/api/mobile/session", mobile_session)
+    app.router.add_post("/api/mobile/session/refresh", mobile_refresh)
+    app.router.add_post("/api/mobile/session/logout", mobile_logout)
     app.router.add_get("/api/mobile/profile", mobile_profile)
     app.router.add_get("/api/mobile/avatar/{email}", avatar_get)
     app.router.add_post("/api/mobile/avatar", avatar_post)
