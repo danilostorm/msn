@@ -28,11 +28,11 @@
    <MenuItem Header="Ajuda"><MenuItem Header="Sobre a conversa" Click="Help_Click"/></MenuItem>
   </Menu>
   <Grid Grid.Row="1" Background="{StaticResource ChatSky}" ClipToBounds="True">
-   <Canvas IsHitTestVisible="False" ClipToBounds="True">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="76"/><ColumnDefinition Width="*"/><ColumnDefinition Width="62"/></Grid.ColumnDefinitions>
+   <Canvas Grid.ColumnSpan="3" IsHitTestVisible="False" ClipToBounds="True">
     <Path Fill="#70FFFFFF" Data="M 0,0 L 555,0 L 555,15 C 401,-3 214,11 0,74 Z"/>
     <Path Fill="#58FFFFFF" Data="M 330,0 L 555,0 L 555,93 C 488,31 414,11 330,0 Z"/>
    </Canvas>
-   <Grid.ColumnDefinitions><ColumnDefinition Width="76"/><ColumnDefinition Width="*"/><ColumnDefinition Width="62"/></Grid.ColumnDefinitions>
    <Border Grid.Column="0" Margin="13,12" CornerRadius="8" BorderThickness="3"
      BorderBrush="#7CE42C" Background="White" Padding="3">
     <Grid Background="#37638B">
