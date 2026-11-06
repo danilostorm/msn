@@ -54,4 +54,25 @@ O ajuste inclui \`UseLayoutRounding=True\`, \`SnapsToDevicePixels=True\` e \`Tex
 
 ## Situação
 
-**v0.1.1:** primeiro ajuste geométrico conforme capturas e identificadores estruturais já comprovados. **Ainda não é pixel-perfect**, não possui comparação automática por captura e não substitui o Messenger original.
+**v0.1.2:** revisão visual dos cabeçalhos e linhas de contato para o estilo azul e branco da era 2009, reposicionamento da foto do usuário na janela de conversa, estilo de seleção de contatos e medição de capturas 1:1 implementados. O cliente original segue intacto. A compilação WPF passou em GitHub Actions; **a comparação real com capturas do Messenger original ainda não foi realizada**, portanto a fidelidade pixel-perfect NÃO foi comprovada.
+
+## Comparação objetiva — ferramentas da v0.1.2
+
+Scripts novos (Windows PowerShell, devem rodar na sessão gráfica interativa):
+
+- `tools/Capture-Window.ps1`: captura apenas a janela visível de um processo, junto com sua DPI efetiva. Não automatiza o original nem interfere no cliente instalado.
+- `tools/Compare-Screenshots.ps1`: compara dois PNGs na mesma resolução, pixel a pixel, e produz `metrics.json`, `overlay.png` e `heatmap.png` com erro absoluto médio RGB e percentual de pixels que excedem a tolerância escolhida.
+
+Exemplo em PowerShell na raiz `windows/StormMSN.Classic`:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\\tools\\Capture-Window.ps1 -ProcessName msnmsgr -OutputPath "$env:TEMP\\StormMSN-PixelQA\\original.png"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\\tools\\Capture-Window.ps1 -ProcessName StormMSN.Classic -OutputPath "$env:TEMP\\StormMSN-PixelQA\\classic.png"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\\tools\\Compare-Screenshots.ps1 -Reference "$env:TEMP\\StormMSN-PixelQA\\original.png" -Candidate "$env:TEMP\\StormMSN-PixelQA\\classic.png" -Tolerance 8
+```
+
+**Pré-requisitos de validação:** o processo `msnmsgr` precisa ter uma janela visível no mesmo desktop, ambos devem usar 100% / 96 DPI, o mesmo estado visual, dimensões idênticas e não podem estar cobertos por outras janelas. Não redimensione as capturas após a coleta para 'forçar' a igualdade. Use contas de teste ou o modo de prévia sem dados privados.
+
+**Validação do comparador:** teste feito no Nexus com duas imagens sintéticas de 4×4 pixels que diferiam em um único pixel; saída correta: `changed_pixels=1`, `changed_percent=6.25`, `mean_absolute_error=10.625`. Isso prova o funcionamento da ferramenta, NÃO a semelhança com o cliente Microsoft.
+
+O próximo ciclo deverá extrair coordenadas e estados do recurso UIB para substituir os valores estimados, e realizar capturas reais controladas para corrigir as diferenças até uma tolerância visual estabelecida. Nenhum DLL, ícone ou imagem proprietária deve ser incluído no repositório ou no ZIP.
