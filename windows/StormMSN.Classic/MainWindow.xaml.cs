@@ -69,6 +69,8 @@ public partial class MainWindow : Window {
 
     private TextBlock StatusLine { get; }
     private void ShowLogin() {
+        FooterRow.Height = new GridLength(35);
+        FooterBar.Visibility = Visibility.Visible;
         ContactsLayer.Visibility = Visibility.Collapsed;
         LoginLayer.Visibility = Visibility.Visible;
         SignInOverlay.Visibility = Visibility.Collapsed;
@@ -80,6 +82,8 @@ public partial class MainWindow : Window {
         _demo = false;
     }
     private void ShowContacts() {
+        FooterRow.Height = new GridLength(0);
+        FooterBar.Visibility = Visibility.Collapsed;
         LoginLayer.Visibility = Visibility.Collapsed;
         ContactsLayer.Visibility = Visibility.Visible;
         MyEmail.Text = _loginEmail ?? "";
@@ -347,7 +351,7 @@ public partial class MainWindow : Window {
         MessageBox.Show(this, "Esta prévia não grava senhas. Seu e-mail pode ser lembrado localmente.\n" +
             "O Messenger antigo não foi modificado.", "Configurações • Storm MSN");
     private void About_Click(object sender, RoutedEventArgs e) =>
-        MessageBox.Show(this, "Storm MSN Classic 0.1 Preview\n" +
+        MessageBox.Show(this, "Storm MSN Classic 0.1.1 Preview\n" +
             "Cliente Windows paralelo em C# / WPF\nCompatível com servidor Storm MSN MSNP7.\n" +
             "Áudio/vídeo e exclusão sincronizada ainda não implementados.", "Sobre o Storm MSN Classic");
     private static void OpenUrl(string url) {
