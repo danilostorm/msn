@@ -195,8 +195,11 @@ public partial class MainWindow : Window {
 
     private void AddGroup(string label, MsnBuddy[] contacts) {
         var head = new TextBlock {
-            Text = label, FontSize = 14, Foreground = new SolidColorBrush(Color.FromRgb(50, 105, 142)),
-            Margin = new Thickness(3, 13, 0, 8)
+            Text = label, FontSize = 12.5, FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromRgb(48, 91, 120)),
+            Background = new SolidColorBrush(Color.FromRgb(241, 249, 252)),
+            Padding = new Thickness(4, 3, 0, 3),
+            Margin = new Thickness(0, 6, 0, 4)
         };
         ContactItems.Children.Add(head);
         if (contacts.Length == 0 && label.StartsWith("★")) {
@@ -221,7 +224,7 @@ public partial class MainWindow : Window {
         };
         var inner = new Grid { Background = new SolidColorBrush(Color.FromRgb(179, 218, 238)) };
         inner.Children.Add(new TextBlock {
-            Text = "♟", FontSize = 22, Foreground = Brushes.SteelBlue,
+            Text = "●", FontSize = 22, Foreground = Brushes.SteelBlue,
             VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center
         });
         if (!_demo) {
@@ -248,16 +251,18 @@ public partial class MainWindow : Window {
         };
         Grid.SetColumn(dot, 2); row.Children.Add(dot);
         var button = new Button {
-            Content = row, BorderThickness = new Thickness(0),
-            Background = Brushes.Transparent, HorizontalContentAlignment = HorizontalAlignment.Stretch,
-            Margin = new Thickness(0, 0, 0, 4), Padding = new Thickness(4), Height = 53
+            Content = row, Style = (Style)FindResource("ContactRowStyle"),
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            Margin = new Thickness(0, 0, 0, 2), Height = 51
         };
         button.Click += (_, _) => OpenChat(buddy);
         var menu = new ContextMenu();
         var favorite = new MenuItem { Header = buddy.Favorite ? "Remover dos favoritos" : "Adicionar aos favoritos" };
         favorite.Click += (_, _) => { buddy.Favorite = !buddy.Favorite; RefreshContacts(); };
         menu.Items.Add(favorite);
-        menu.Items.Add(new MenuItem { Header = "Enviar mensagem", Command = null });
+        var sendMessage = new MenuItem { Header = "Enviar mensagem" };
+        sendMessage.Click += (_, _) => OpenChat(buddy);
+        menu.Items.Add(sendMessage);
         button.ContextMenu = menu;
         ContactItems.Children.Add(button);
     }
