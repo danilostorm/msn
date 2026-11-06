@@ -56,7 +56,61 @@ class StormAttachmentBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     if (attachment.photo) {
       return InkWell(
-        onTap: () => onOpen(attachment.url),
+        onTap: () => showDialog<void>(
+          context: context,
+          builder: (dialogContext) => Dialog(
+            insetPadding: const EdgeInsets.all(10),
+            backgroundColor: const Color(0xff101b25),
+            child: SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        tooltip: 'Fechar prévia',
+                        onPressed: () => Navigator.pop(dialogContext),
+                      ),
+                      const Expanded(
+                        child: Text(
+                          'Foto do Storm MSN',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.open_in_new,
+                          color: Colors.white,
+                        ),
+                        tooltip: 'Abrir foto no navegador',
+                        onPressed: () => onOpen(attachment.url),
+                      ),
+                    ],
+                  ),
+                  SizedBox(
+                    height: MediaQuery.sizeOf(dialogContext).height * 0.66,
+                    width: double.infinity,
+                    child: InteractiveViewer(
+                      minScale: 0.7,
+                      maxScale: 4,
+                      child: Image.network(
+                        attachment.url,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const Center(
+                          child: Text(
+                            'Não foi possível carregar a imagem.',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(10),
           child: ConstrainedBox(

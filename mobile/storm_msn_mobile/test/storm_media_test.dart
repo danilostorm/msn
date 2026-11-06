@@ -37,6 +37,15 @@ void main() {
     final bad = Uint8List.fromList(wav);
     ByteData.sublistView(bad).setUint32(40, 9900000, Endian.little);
     expect(isCompleteStormWav(bad), isFalse);
+    final stale = Uint8List.fromList(wav);
+    final view = ByteData.sublistView(stale);
+    view.setUint32(4, 0, Endian.little);
+    view.setUint32(40, 999999, Endian.little);
+    expect(isCompleteStormWav(stale), isFalse);
+    final repaired = repairStormRecorderWav(stale);
+    expect(repaired, isNotNull);
+    expect(isCompleteStormWav(repaired!), isTrue);
+    expect(repaired.length, wav.length);
   });
 
   test('attachment links reject domains and unknown path shapes', () {

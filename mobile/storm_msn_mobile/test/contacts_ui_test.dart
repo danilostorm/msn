@@ -101,6 +101,18 @@ void main() {
     expect(find.byTooltip('Anexar arquivo'), findsOneWidget);
     expect(find.byTooltip('Emoticons e emojis'), findsOneWidget);
     expect(tester.takeException(), isNull);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Disponível (1)'),
+      findsOneWidget,
+      reason: 'Android Voltar must return to contacts instead of logout.',
+    );
+    expect(client.online, isTrue);
+    // Pressing Back on contacts is allowed only to minimize, never to sign out.
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(client.online, isTrue);
     tester.view.resetPhysicalSize();
     tester.view.resetDevicePixelRatio();
     await tester.pumpAndSettle();

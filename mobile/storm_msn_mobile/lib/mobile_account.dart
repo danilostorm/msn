@@ -152,7 +152,8 @@ class StormMobileApi {
         req.headers.contentType = ContentType.json;
         req.write(jsonEncode(json));
       } else if (image != null) {
-        req.headers.contentType = ContentType('image', 'jpeg');
+        // prepareStormAvatar always outputs a valid PNG.
+        req.headers.contentType = ContentType('image', 'png');
         req.add(image);
       } else if (audio != null) {
         req.headers.contentType = ContentType(

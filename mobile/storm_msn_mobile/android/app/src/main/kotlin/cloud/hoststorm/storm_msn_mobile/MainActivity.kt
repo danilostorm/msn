@@ -84,6 +84,18 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
+            "cloud.hoststorm.storm_msn_mobile/lifecycle"
+        ).setMethodCallHandler { call, result ->
+            if (call.method == "minimize") {
+                // Do not finish the Activity or revoke MSNP7 credentials.
+                moveTaskToBack(true)
+                result.success(null)
+            } else {
+                result.notImplemented()
+            }
+        }
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
             "cloud.hoststorm.storm_msn_mobile/attachments"
         ).setMethodCallHandler { call, result ->
             if (call.method != "pickAttachment") {

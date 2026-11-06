@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -15,6 +16,7 @@ import 'admob_footer.dart';
 import 'storm_notifications.dart';
 import 'storm_chat_extras.dart';
 import 'storm_attachments.dart';
+import 'storm_avatar_codec.dart';
 import 'storm_background_service.dart';
 
 Future<void> main() async {
@@ -68,10 +70,10 @@ class _StormMsnAppState extends State<StormMsnApp> with WidgetsBindingObserver {
   Timer? _avatarRefreshTimer;
   static const _mobileApi = StormMobileApi();
   bool _showPassword = false;
-  bool _rememberEmail = false;
-  bool _rememberPassword = false;
-  bool _autoLogin = false;
-  bool _keepOnline = false;
+  bool _rememberEmail = true;
+  bool _rememberPassword = true;
+  bool _autoLogin = true;
+  bool _keepOnline = true;
   bool _backgroundActive = false;
   bool _foregroundRestoring = false;
   Future<void>? _handoffFuture;
@@ -117,18 +119,20 @@ class _StormMsnAppState extends State<StormMsnApp> with WidgetsBindingObserver {
   Future<void> _restoreSavedLogin() async {
     if (widget.session != null) return;
     try {
-      final keep =
-          await _secureStorage.read(key: 'storm_keep_online') == 'true';
-      final auto = await _secureStorage.read(key: 'storm_auto_login') == 'true';
+      final optOut =
+          await _secureStorage.read(key: 'storm_stay_signed_in_opt_out') ==
+          'true';
+      final keep = !optOut;
+      final auto = !optOut;
       final savedPassword = await _secureStorage.read(
         key: 'storm_login_password',
       );
       final savedEmail = await _secureStorage.read(key: 'storm_login_id');
       if (!mounted) return;
       setState(() {
-        _autoLogin = auto && (savedPassword?.isNotEmpty ?? false);
-        _keepOnline = keep && _autoLogin;
-        _rememberPassword = savedPassword?.isNotEmpty ?? false;
+        _autoLogin = auto;
+        _keepOnline = keep;
+        _rememberPassword = !optOut;
         if (savedEmail != null && savedEmail.isNotEmpty) {
           _email.text = savedEmail;
           _rememberEmail = true;
@@ -706,7 +710,9 @@ class _StormMsnAppState extends State<StormMsnApp> with WidgetsBindingObserver {
           requestFullMetadata: false,
         );
         if (photo == null) return;
-        final bytes = await photo.readAsBytes();
+        // Camera/album can return HEIC/WebP/PNG irrespective of extension.
+        // Encode once to a canonical PNG before posting to the server.
+        final bytes = await prepareStormAvatar(await photo.readAsBytes());
         await _uploadAvatarWithRefresh(account, bytes);
         if (mounted) {
           setState(
@@ -757,6 +763,23 @@ class _StormMsnAppState extends State<StormMsnApp> with WidgetsBindingObserver {
       }
     } catch (e) {
       _toast(e.toString().replaceFirst('Bad state: ', ''));
+    }
+  }
+
+  /// Android Back never means "Sair". First return to contacts; from
+  /// contacts move the app to background without destroying its login.
+  Future<void> _systemBack() async {
+    if (client.online && selected != null) {
+      if (mounted) setState(() => selected = null);
+      return;
+    }
+    if (kIsWeb || !Platform.isAndroid) return;
+    try {
+      await const MethodChannel(
+        'cloud.hoststorm.storm_msn_mobile/lifecycle',
+      ).invokeMethod<void>('minimize');
+    } catch (_) {
+      // A missing Android channel must not sign out the MSN user.
     }
   }
 
@@ -815,13 +838,19 @@ class _StormMsnAppState extends State<StormMsnApp> with WidgetsBindingObserver {
           ),
         ),
       ),
-      home: AnimatedBuilder(
-        animation: client,
-        builder: (context, _) => Scaffold(
-          key: _scaffoldKey,
-          resizeToAvoidBottomInset: true,
-          body: SafeArea(
-            child: client.online ? _mainView(context) : _loginView(context),
+      home: PopScope<void>(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _systemBack();
+        },
+        child: AnimatedBuilder(
+          animation: client,
+          builder: (context, _) => Scaffold(
+            key: _scaffoldKey,
+            resizeToAvoidBottomInset: true,
+            body: SafeArea(
+              child: client.online ? _mainView(context) : _loginView(context),
+            ),
           ),
         ),
       ),
@@ -868,8 +897,14 @@ class _StormMsnAppState extends State<StormMsnApp> with WidgetsBindingObserver {
           }
         });
         if (!value) {
+          _secureStorage.write(
+            key: 'storm_stay_signed_in_opt_out',
+            value: 'true',
+          );
           _forgetSecureLogin();
           StormBackgroundService.stop();
+        } else {
+          _secureStorage.delete(key: 'storm_stay_signed_in_opt_out');
         }
       },
       onAutoLogin: (value) {
@@ -884,6 +919,14 @@ class _StormMsnAppState extends State<StormMsnApp> with WidgetsBindingObserver {
           setState(() => _keepOnline = false);
           StormBackgroundService.stop();
         }
+        if (!value) {
+          _secureStorage.write(
+            key: 'storm_stay_signed_in_opt_out',
+            value: 'true',
+          );
+        } else {
+          _secureStorage.delete(key: 'storm_stay_signed_in_opt_out');
+        }
         if (!value && !_rememberPassword) _forgetSecureLogin();
       },
       keepOnline: _keepOnline,
@@ -896,7 +939,15 @@ class _StormMsnAppState extends State<StormMsnApp> with WidgetsBindingObserver {
             _rememberEmail = true;
           }
         });
-        if (!value) StormBackgroundService.stop();
+        if (!value) {
+          _secureStorage.write(
+            key: 'storm_stay_signed_in_opt_out',
+            value: 'true',
+          );
+          StormBackgroundService.stop();
+        } else {
+          _secureStorage.delete(key: 'storm_stay_signed_in_opt_out');
+        }
       },
     );
   }
@@ -1534,17 +1585,38 @@ class _ConversationPanelState extends State<_ConversationPanel> {
           maxHeight: 1920,
         );
         if (imageFile == null) return;
-        payload = await imageFile.readAsBytes();
-        final extension =
-            payload.length >= 12 && payload[0] == 0x89 && payload[1] == 0x50
-            ? '.png'
-            : payload.length >= 12 && payload[0] == 0x52 && payload[8] == 0x57
-            ? '.webp'
-            : '.jpg';
+        // HEIC/WEBP camera sources are normalized like the profile photo,
+        // so both the mobile preview and the legacy desktop URL work.
+        payload = await prepareStormChatPhoto(await imageFile.readAsBytes());
         name =
-            'foto-' +
-            DateTime.now().millisecondsSinceEpoch.toString() +
-            extension;
+            'foto-' + DateTime.now().millisecondsSinceEpoch.toString() + '.png';
+        if (!mounted) return;
+        final preview = payload;
+        final approved = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Enviar foto'),
+            content: SizedBox(
+              width: 310,
+              height: 300,
+              child: InteractiveViewer(
+                child: Image.memory(preview, fit: BoxFit.contain),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton.icon(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                icon: const Icon(Icons.send),
+                label: const Text('Enviar foto'),
+              ),
+            ],
+          ),
+        );
+        if (approved != true || !mounted) return;
       } else {
         // Android Storage Access Framework: native file picker without
         // optional plugins, bounded to 8 MB by MainActivity.

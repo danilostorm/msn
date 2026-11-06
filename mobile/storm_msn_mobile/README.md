@@ -342,3 +342,66 @@ Manter `buildNumber > 8` na futura versão 0.8.
 - Ainda requer teste físico em Android do gravador, galeria, arquivo local,
   AdMob e abrir anexos. WebRTC e push FCM totalmente encerrado continuam
   pendentes; sem controle remoto de exclusão de mensagens.
+
+## 0.7.3 (Android build 10): Voltar sem sair, avatar PNG, WAV e prévia de fotos
+
+### Navegação e sessão
+- O botão físico/gesto Android **Voltar** dentro de conversa retorna
+  aos contatos; da lista de contatos envia a Activity para o segundo plano
+  pelo canal nativo `lifecycle/minimize` (`moveTaskToBack(true)`).
+  Não chama `signOut()`, não revoga sessão e não limpa credenciais.
+- Login automático, senha lembrada no Android Secure Storage e
+  foreground service opt-in no próprio cliente passam a vir sugeridos
+  por padrão. É possível desativar nas opções. A opção **Arquivo > Sair**
+  continua sendo a saída explícita. O Android/OEM ainda pode encerrar
+  o processo ou o serviço; push quando encerrado exige integração FCM,
+  ainda indisponível.
+- Teste de navegação simula Android Back em conversa e lista, validando
+  que a sessão MSNP7 continua online.
+
+### Avatar e envio de imagens
+- `storm_avatar_codec.dart`: a foto selecionada pela câmera/galeria é
+  decodificada pelo mecanismo nativo Flutter e **reencodada em PNG**,
+  resolução limitada (320 px para avatar). O upload usa
+  `Content-Type: image/png`, nunca o antigo tipo JPEG fixo independente
+  dos bytes. Um erro de decodificação gera orientação para escolher JPG/PNG.
+- A mídia de conversa é normalizada em PNG até 1024 px e 8 MiB.
+  Antes do upload, há prévia visual e confirmação Enviar/Cancelar.
+  Após enviar, o balão de foto tem miniatura e visualizador interno com
+  zoom, sem obrigar o usuário a sair do MSN para ver imagem.
+- A visualização nativa de fotos na janela original fechada Windows Live
+  Messenger 2009 depende de um cliente desktop novo/adaptado; o WLM
+  clássico atualmente apresenta o link de anexo no texto.
+
+### Áudio
+- No Android o gravador `record` escreve WAV/PCM; o código foi ajustado
+  para aguardar tamanho de arquivo estável após stop().
+- `repairStormRecorderWav` reconstrói a estrutura RIFF/fmt/data
+  usando apenas amostras PCM realmente presentes, sempre que o header
+  estiver desatualizado; não fabrica amostras inexistentes nem aceita
+  dados arbitrários como WAV.
+- Remove a restrição baseada em segundo do Timer (que rejeitava gravações
+  curtas ou pressionar e soltar), validando em vez disso a quantidade
+  efetiva de PCM. Corrigida a corrida ao soltar antes do início assíncrono
+  do gravador.
+- O envio/reprodução M4A antigo íntegro continua compatível. Arquivos
+  que já chegaram truncados não são recuperáveis.
+
+### O caminho para o desktop
+- Não substituir o Windows Live Messenger 2009 atual em produção.
+  O visual pode ser preservado com um novo frontend Windows de layout
+  clássico e um backend moderno para mensagens/mídia, mantendo o serviço
+  atual como legado enquanto se cria compatibilidade por feature flag.
+- Um cliente Rust/Tauri ou uma camada nativa Windows pode ser avaliada,
+  mas reescrever o desktop não corrige sozinho bugs Android de seleção,
+  upload, gravação, autenticação e uso de rede.
+- Para sincronização real de edição e remoção entre dispositivos são
+  necessários IDs persistentes e confirmação no servidor; não se deve
+  afirmar \"apagar para todos\" em operações locais.
+
+### Validação
+- Testes Flutter executados em contêiner, incluindo Back sem logout,
+  PNG normalizado de galeria e reparo de WAV. A experiência no celular
+  físico permanece sujeita a teste do aparelho e fabricante.
+- Release v0.7.3 usa buildCode 10, o certificado oficial v0.7.2 e os
+  mesmos IDs AdMob do proprietário informados anteriormente.

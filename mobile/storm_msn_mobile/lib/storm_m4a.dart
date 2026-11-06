@@ -93,3 +93,70 @@ String? stormVoiceFileType(Uint8List data) {
   if (isCompleteStormM4a(data)) return 'm4a';
   return null;
 }
+
+/// The Android recorder sometimes writes a RIFF header with a stale data size.
+/// This is only for local files returned by AudioRecorder.stop(). Rebuild a
+/// canonical PCM WAV from the audio bytes already present, never invent audio.
+Uint8List? repairStormRecorderWav(Uint8List raw) {
+  if (raw.length < 44 ||
+      ascii.decode(raw.sublist(0, 4), allowInvalid: true) != 'RIFF' ||
+      ascii.decode(raw.sublist(8, 12), allowInvalid: true) != 'WAVE') {
+    return null;
+  }
+  final bytes = ByteData.sublistView(raw);
+  int? sampleRate;
+  int? start;
+  var at = 12;
+  for (var step = 0; step < 12 && at + 8 <= raw.length; step++) {
+    final marker = ascii.decode(raw.sublist(at, at + 4), allowInvalid: true);
+    final size = bytes.getUint32(at + 4, Endian.little);
+    final payload = at + 8;
+    if (marker == 'fmt ') {
+      if (size < 16 || payload + 16 > raw.length) return null;
+      final codec = bytes.getUint16(payload, Endian.little);
+      final channels = bytes.getUint16(payload + 2, Endian.little);
+      final rate = bytes.getUint32(payload + 4, Endian.little);
+      final byteRate = bytes.getUint32(payload + 8, Endian.little);
+      final frame = bytes.getUint16(payload + 12, Endian.little);
+      final bits = bytes.getUint16(payload + 14, Endian.little);
+      if (codec != 1 ||
+          channels != 1 ||
+          bits != 16 ||
+          frame != 2 ||
+          rate < 8000 ||
+          rate > 48000 ||
+          byteRate != rate * 2)
+        return null;
+      sampleRate = rate;
+    } else if (marker == 'data') {
+      start = payload;
+      break; // The recorded bytes, not the stale header length, are trusted.
+    }
+    if (size > raw.length - payload) return null;
+    at = payload + size + (size & 1);
+  }
+  if (sampleRate == null || start == null) return null;
+  var pcmLength = raw.length - start;
+  if (pcmLength.isOdd) pcmLength--;
+  // Enough for ~250ms at 16k; rejects empty/failed microphone capture.
+  if (pcmLength < sampleRate ~/ 2 || pcmLength > 8 * 1024 * 1024 - 44) {
+    return null;
+  }
+  final output = Uint8List(pcmLength + 44);
+  final header = ByteData.sublistView(output);
+  output.setRange(0, 4, ascii.encode('RIFF'));
+  header.setUint32(4, output.length - 8, Endian.little);
+  output.setRange(8, 12, ascii.encode('WAVE'));
+  output.setRange(12, 16, ascii.encode('fmt '));
+  header.setUint32(16, 16, Endian.little);
+  header.setUint16(20, 1, Endian.little);
+  header.setUint16(22, 1, Endian.little);
+  header.setUint32(24, sampleRate, Endian.little);
+  header.setUint32(28, sampleRate * 2, Endian.little);
+  header.setUint16(32, 2, Endian.little);
+  header.setUint16(34, 16, Endian.little);
+  output.setRange(36, 40, ascii.encode('data'));
+  header.setUint32(40, pcmLength, Endian.little);
+  output.setRange(44, output.length, raw, start);
+  return output;
+}

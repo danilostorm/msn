@@ -38,6 +38,8 @@ class _StormVoiceRecorderState extends State<StormVoiceRecorder> {
   bool _recording = false;
   bool _busy = false;
   int _seconds = 0;
+  bool _holdReleased = false;
+  Future<void>? _holdStarting;
 
   @override
   void dispose() {
@@ -96,22 +98,32 @@ class _StormVoiceRecorderState extends State<StormVoiceRecorder> {
   }
 
   Future<Uint8List> _readFinalizedRecording(String path) async {
-    // Wait for the WAV/PCM or AAC container to finalize after stop().
     final file = File(path);
-    for (var attempt = 0; attempt < 25; attempt++) {
+    var previousSize = -1;
+    var stableReads = 0;
+    for (var attempt = 0; attempt < 30; attempt++) {
       if (await file.exists()) {
         final size = await file.length();
         if (size > 8 * 1024 * 1024) {
           throw StateError('A gravação excedeu 8 MB.');
         }
-        if (size >= 128) {
+        stableReads = size == previousSize ? stableReads + 1 : 0;
+        previousSize = size;
+        if (size >= 128 && stableReads >= 2) {
           final bytes = await file.readAsBytes();
           if (stormVoiceFileType(bytes) != null) return bytes;
+          final repaired = repairStormRecorderWav(bytes);
+          if (repaired != null && isCompleteStormWav(repaired)) {
+            return repaired;
+          }
         }
       }
-      await Future<void>.delayed(const Duration(milliseconds: 200));
+      await Future<void>.delayed(const Duration(milliseconds: 160));
     }
-    throw StateError('O Android não finalizou o áudio. Grave novamente.');
+    throw StateError(
+      'O gravador não finalizou os dados. Tente novamente ou confira a '
+      'permissão do microfone.',
+    );
   }
 
   Future<void> _finish() async {
@@ -122,9 +134,8 @@ class _StormVoiceRecorderState extends State<StormVoiceRecorder> {
     try {
       path = await _recorder.stop();
       setState(() => _recording = false);
-      if (path == null || _seconds < 1) {
-        widget.onError('Grave pelo menos um segundo de áudio.');
-        return;
+      if (path == null) {
+        throw StateError('O gravador não retornou um arquivo de voz.');
       }
       final bytes = await _readFinalizedRecording(path);
       final url = await widget.onUploadVoice(bytes);
@@ -160,10 +171,19 @@ class _StormVoiceRecorderState extends State<StormVoiceRecorder> {
       child: InkWell(
         onTap: _toggle,
         onLongPress: () {
-          if (!_recording && !_busy) _toggle();
+          if (_recording || _busy) return;
+          _holdReleased = false;
+          _holdStarting = _toggle().then((_) async {
+            if (_holdReleased && _recording && !_busy) await _finish();
+          });
         },
         onLongPressUp: () {
-          if (_recording && !_busy) _finish();
+          _holdReleased = true;
+          // If start() is still waiting for Android's microphone permission,
+          // _holdStarting completes first and then finalizes the recording.
+          if (_recording && !_busy) {
+            unawaited(_finish());
+          }
         },
         borderRadius: BorderRadius.circular(9),
         child: SizedBox(
