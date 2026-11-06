@@ -1,4 +1,4 @@
-# Storm MSN Classic para Windows — prévia 0.1
+# Storm MSN Classic para Windows — prévia 0.1.2
 
 Cliente **paralelo** em C# / WPF e .NET 8, pensado para preservar a aparência do Windows Live Messenger 2009 enquanto novas funções de mensagens são desenvolvidas. Não altera nem substitui o Windows Live Messenger instalado. A versão é preliminar e não tem promessa de fidelidade pixel a pixel.
 
@@ -29,3 +29,11 @@ A aplicação oferece botão **Prévia visual sem conectar** para examinar os la
 ## Segurança e isolamento
 
 Este cliente não injeta código em \`msnmsgr.exe\` ou \`msgsres.dll\`, não modifica o cliente original, não substitui arquivos de registro do Windows Live Messenger e não altera as contas nem dados dos outros serviços. Compilação na pasta \`windows/StormMSN.Classic\`, com fluxo GitHub Actions próprio.
+
+## Laboratório de fidelidade visual (v0.1.2)
+
+A versão 0.1.2 substitui partes do desenho provisório dos cabeçalhos pelo degradê azul/branco típico de 2009, adota seleção discreta para contatos e apresenta as duas fotos dos participantes à esquerda da conversa. A correção usa recursos vetoriais próprios — **não contém DLLs ou imagens da Microsoft**.
+
+Na pasta `tools`, os scripts `Capture-Window.ps1` e `Compare-Screenshots.ps1` permitem capturar as janelas em 96 DPI e comparar dois PNGs sem interpolação, criando mapa de calor, sobreposição e métricas. Para exemplos de execução, veja `REFERENCE-PIXEL-FIDELITY.md`.
+
+O compilador aprovar não significa que a tela está idêntica: até termos imagens do original e da revisão, no mesmo ambiente e estado, não há porcentagem de fidelidade validada. O trabalho permanece isolado da instalação antiga e do servidor de produção.
