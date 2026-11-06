@@ -35,6 +35,13 @@ public partial class ChatWindow : Window {
         if (!demo) {
             try { PeerAvatar.Source = new BitmapImage(buddy.Avatar); }
             catch { }
+            if (!string.IsNullOrWhiteSpace(session.Email)) {
+                try {
+                    var address = Uri.EscapeDataString(session.Email);
+                    MyAvatar.Source = new BitmapImage(
+                        new Uri("https://msn.hoststorm.com.br/api/mobile/avatar/" + address));
+                } catch { }
+            }
         }
         AppendInfo(demo
             ? "Prévia de conversa • nenhum contato real conectado."
