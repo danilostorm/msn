@@ -1,0 +1,25 @@
+name: WLM 2009 original resource integrity
+
+on:
+  push:
+    branches:
+      - feat/wlm2009-original-fidelity
+    paths:
+      - 'wlm2009/**'
+      - '.github/workflows/wlm2009-original-fidelity.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integrity-tests:
+    name: Test local manifests without Microsoft binaries
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run synthetic baseline, INI and tamper tests
+        shell: powershell
+        run: |
+          & .\wlm2009\tests\Test-Integridade.ps1
