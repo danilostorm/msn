@@ -52,6 +52,15 @@ class MsnClient extends ChangeNotifier {
 
   List<MsnMessage> history(String who) =>
       messages[who.toLowerCase()] ?? <MsnMessage>[];
+
+  /// Local-only removal: the classic MSN protocol has no cross-device delete.
+  void removeLocalMessage(String peer, MsnMessage entry) {
+    final list = messages[peer.toLowerCase()];
+    if (list == null) return;
+    list.remove(entry);
+    notifyListeners();
+  }
+
   final _switchboards = <String, MsnWire>{};
   final _pending = <String, List<String>>{};
   final _calls = Queue<String>();

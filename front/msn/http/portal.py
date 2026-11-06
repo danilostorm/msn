@@ -283,4 +283,8 @@ def register(app,backend):
     register_mobile(app)
     from .mobile_audio import register as register_voice_notes
     register_voice_notes(app)
+    from .mobile_attachments import register as register_mobile_attachments
+    register_mobile_attachments(app)
+    from .mobile_calls import register as register_mobile_calls
+    register_mobile_calls(app)
 

@@ -14,6 +14,7 @@ import 'mobile_account.dart';
 import 'admob_footer.dart';
 import 'storm_notifications.dart';
 import 'storm_chat_extras.dart';
+import 'storm_attachments.dart';
 import 'storm_background_service.dart';
 
 Future<void> main() async {
@@ -1470,6 +1471,10 @@ class _StormMsnAppState extends State<StormMsnApp> with WidgetsBindingObserver {
       who: who,
       account: _account,
       onUploadVoice: _uploadVoiceWithRefresh,
+      onUploadAttachment: (name, bytes) => _withMediaSession<String>(
+        (account) => _mobileApi.uploadAttachment(account.token, name, bytes),
+      ),
+      onOpenExternal: _openExternal,
       showBack: !wide,
       onBack: () => setState(() => selected = null),
       onGames: () => _openExternal(
@@ -1489,6 +1494,8 @@ class _ConversationPanel extends StatefulWidget {
     required this.who,
     required this.account,
     required this.onUploadVoice,
+    required this.onUploadAttachment,
+    required this.onOpenExternal,
     required this.showBack,
     required this.onBack,
     required this.onGames,
@@ -1499,6 +1506,8 @@ class _ConversationPanel extends StatefulWidget {
   final MsnBuddy who;
   final StormMobileAccount? account;
   final Future<String> Function(Uint8List) onUploadVoice;
+  final Future<String> Function(String, Uint8List) onUploadAttachment;
+  final Future<void> Function(String) onOpenExternal;
   final bool showBack;
   final VoidCallback onBack, onGames;
   final void Function(String) onUnavailable, onError;
@@ -1509,6 +1518,104 @@ class _ConversationPanel extends StatefulWidget {
 class _ConversationPanelState extends State<_ConversationPanel> {
   final text = TextEditingController();
   final list = ScrollController();
+  MsnMessage? _replyTo;
+  bool _sendingAttachment = false;
+
+  Future<void> _sendAttachment({required bool image}) async {
+    if (_sendingAttachment) return;
+    try {
+      String? name;
+      Uint8List? payload;
+      if (image) {
+        final imageFile = await ImagePicker().pickImage(
+          source: ImageSource.gallery,
+          imageQuality: 78,
+          maxWidth: 1920,
+          maxHeight: 1920,
+        );
+        if (imageFile == null) return;
+        payload = await imageFile.readAsBytes();
+        final extension =
+            payload.length >= 12 && payload[0] == 0x89 && payload[1] == 0x50
+            ? '.png'
+            : payload.length >= 12 && payload[0] == 0x52 && payload[8] == 0x57
+            ? '.webp'
+            : '.jpg';
+        name =
+            'foto-' +
+            DateTime.now().millisecondsSinceEpoch.toString() +
+            extension;
+      } else {
+        // Android Storage Access Framework: native file picker without
+        // optional plugins, bounded to 8 MB by MainActivity.
+        final chosen = await const MethodChannel(
+          'cloud.hoststorm.storm_msn_mobile/attachments',
+        ).invokeMapMethod<String, dynamic>('pickAttachment');
+        if (chosen == null) return;
+        name = chosen['name'] as String?;
+        payload = chosen['bytes'] as Uint8List?;
+      }
+      if (name == null || payload == null || payload.isEmpty) {
+        throw StateError('Não foi possível ler o arquivo selecionado.');
+      }
+      if (payload.length > 8 * 1024 * 1024) {
+        throw StateError('Arquivo acima de 8 MB.');
+      }
+      if (!mounted) return;
+      setState(() => _sendingAttachment = true);
+      final link = await widget.onUploadAttachment(name, payload);
+      if (image) {
+        await widget.client.sendMessage(widget.who.email, '📷 Foto: ' + link);
+      } else {
+        final safeName = name.replaceAll(RegExp(r'[^A-Za-z0-9._() -]'), '_');
+        await widget.client.sendMessage(
+          widget.who.email,
+          '📎 Arquivo: ' + safeName + ' ' + link,
+        );
+      }
+    } catch (error) {
+      widget.onError(error.toString().replaceFirst('Bad state: ', ''));
+    } finally {
+      if (mounted) setState(() => _sendingAttachment = false);
+    }
+  }
+
+  Future<void> _messageMenu(MsnMessage message) async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.reply),
+              title: const Text('Responder'),
+              onTap: () => Navigator.pop(ctx, 'reply'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.copy),
+              title: const Text('Copiar mensagem'),
+              onTap: () => Navigator.pop(ctx, 'copy'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline),
+              title: const Text('Apagar somente para mim'),
+              subtitle: const Text('Não apaga no celular da outra pessoa.'),
+              onTap: () => Navigator.pop(ctx, 'delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || selected == null) return;
+    if (selected == 'reply') {
+      setState(() => _replyTo = message);
+    } else if (selected == 'copy') {
+      await Clipboard.setData(ClipboardData(text: message.text));
+    } else if (selected == 'delete') {
+      widget.client.removeLocalMessage(widget.who.email, message);
+    }
+  }
+
   @override
   void dispose() {
     text.dispose();
@@ -1533,9 +1640,24 @@ class _ConversationPanelState extends State<_ConversationPanel> {
   Future<void> send() async {
     final value = text.text.trim();
     if (value.isEmpty) return;
+    final reply = _replyTo;
     try {
-      await widget.client.sendMessage(widget.who.email, value);
+      final body = reply == null
+          ? value
+          : '↪ ' +
+                (reply.mine ? 'Você' : widget.who.title) +
+                ': ' +
+                reply.text
+                    .replaceAll('\n', ' ')
+                    .substring(
+                      0,
+                      reply.text.length > 90 ? 90 : reply.text.length,
+                    ) +
+                '\n' +
+                value;
+      await widget.client.sendMessage(widget.who.email, body);
       text.clear();
+      if (mounted) setState(() => _replyTo = null);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (list.hasClients)
           list.animateTo(
@@ -1633,12 +1755,12 @@ class _ConversationPanelState extends State<_ConversationPanel> {
               _ClassicConversationTool(
                 icon: Icons.photo_outlined,
                 label: 'Fotos',
-                onTap: () => widget.onUnavailable('Compartilhar fotos'),
+                onTap: () => _sendAttachment(image: true),
               ),
               _ClassicConversationTool(
                 icon: Icons.folder_shared_outlined,
                 label: 'Arquivos',
-                onTap: () => widget.onUnavailable('Envio de arquivos'),
+                onTap: () => _sendAttachment(image: false),
               ),
               _ClassicConversationTool(
                 icon: Icons.videocam_outlined,
@@ -1704,64 +1826,100 @@ class _ConversationPanelState extends State<_ConversationPanel> {
                     itemCount: conversation.length,
                     itemBuilder: (_, i) {
                       final m = conversation[i];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 14),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            RichText(
-                              text: TextSpan(
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xff356da0),
-                                ),
-                                children: [
-                                  TextSpan(
-                                    text: m.mine
-                                        ? 'Você diz:'
-                                        : widget.who.title + ' diz:',
+                      return GestureDetector(
+                        onLongPress: () => _messageMenu(m),
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              RichText(
+                                text: TextSpan(
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xff356da0),
                                   ),
-                                  TextSpan(
-                                    text:
-                                        '  ' +
-                                        TimeOfDay.fromDateTime(
-                                          m.when,
-                                        ).format(context),
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      color: Color(0xff9bb0bf),
-                                      fontWeight: FontWeight.normal,
+                                  children: [
+                                    TextSpan(
+                                      text: m.mine
+                                          ? 'Você diz:'
+                                          : widget.who.title + ' diz:',
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            if (stormVoiceUrl(m.text) != null)
-                              StormVoiceMessage(url: stormVoiceUrl(m.text)!)
-                            else
-                              SelectableText(
-                                m.text,
-                                style: const TextStyle(
-                                  color: Color(0xff25384b),
-                                  fontSize: 14.5,
-                                  height: 1.36,
+                                    TextSpan(
+                                      text:
+                                          '  ' +
+                                          TimeOfDay.fromDateTime(
+                                            m.when,
+                                          ).format(context),
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        color: Color(0xff9bb0bf),
+                                        fontWeight: FontWeight.normal,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                          ],
+                              const SizedBox(height: 4),
+                              if (stormVoiceUrl(m.text) != null)
+                                StormVoiceMessage(url: stormVoiceUrl(m.text)!)
+                              else if (parseStormAttachment(m.text) != null)
+                                StormAttachmentBubble(
+                                  attachment: parseStormAttachment(m.text)!,
+                                  onOpen: widget.onOpenExternal,
+                                )
+                              else
+                                SelectableText(
+                                  m.text,
+                                  style: const TextStyle(
+                                    color: Color(0xff25384b),
+                                    fontSize: 14.5,
+                                    height: 1.36,
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       );
                     },
                   ),
           ),
         ),
+        if (_replyTo != null)
+          Container(
+            color: const Color(0xffdef3fc),
+            padding: const EdgeInsets.fromLTRB(10, 4, 7, 4),
+            child: Row(
+              children: [
+                const Icon(Icons.reply, size: 18, color: _blue),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Respondendo: ' + _replyTo!.text.replaceAll('\n', ' '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11, color: _dark),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => setState(() => _replyTo = null),
+                  icon: const Icon(Icons.close, size: 18),
+                  constraints: const BoxConstraints.tightFor(
+                    width: 32,
+                    height: 28,
+                  ),
+                  padding: EdgeInsets.zero,
+                ),
+              ],
+            ),
+          ),
         Container(
           decoration: const BoxDecoration(
             color: Color(0xffedf7fc),
             border: Border(top: BorderSide(color: _line)),
           ),
-          padding: const EdgeInsets.fromLTRB(10, 9, 10, 10),
+          padding: const EdgeInsets.fromLTRB(7, 7, 7, 8),
           child: Row(
             children: [
               Expanded(
@@ -1785,9 +1943,30 @@ class _ConversationPanelState extends State<_ConversationPanel> {
                 ),
               ),
               IconButton(
+                tooltip: 'Anexar arquivo',
+                icon: const Icon(Icons.attach_file, color: _blue, size: 23),
+                onPressed: _sendingAttachment
+                    ? null
+                    : () => _sendAttachment(image: false),
+                constraints: const BoxConstraints.tightFor(
+                  width: 33,
+                  height: 44,
+                ),
+                padding: EdgeInsets.zero,
+              ),
+              IconButton(
                 tooltip: 'Emoticons e emojis',
-                icon: const Icon(Icons.emoji_emotions_outlined, color: _blue),
+                icon: const Icon(
+                  Icons.emoji_emotions_outlined,
+                  color: _blue,
+                  size: 23,
+                ),
                 onPressed: _pickEmoticon,
+                constraints: const BoxConstraints.tightFor(
+                  width: 35,
+                  height: 44,
+                ),
+                padding: EdgeInsets.zero,
               ),
               StormVoiceRecorder(
                 account: widget.account,
@@ -1798,11 +1977,12 @@ class _ConversationPanelState extends State<_ConversationPanel> {
                   if (mounted) setState(() {});
                 },
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 3),
               ElevatedButton(
                 onPressed: send,
                 style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(64, 46),
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(42, 44),
                   backgroundColor: _blue,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(

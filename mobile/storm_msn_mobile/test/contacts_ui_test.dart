@@ -93,6 +93,18 @@ void main() {
       findsOneWidget,
     );
 
+    // 360 dp phone viewport: the composer must align attachment, emojis,
+    // microphone and send without a RenderFlex overflow.
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1.0;
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Anexar arquivo'), findsOneWidget);
+    expect(find.byTooltip('Emoticons e emojis'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
+    await tester.pumpAndSettle();
+
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.runAsync(() async {
       await client.signOut();

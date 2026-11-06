@@ -68,12 +68,12 @@ class _StormVoiceRecorderState extends State<StormVoiceRecorder> {
           dir.path +
           '/storm_voice_' +
           DateTime.now().microsecondsSinceEpoch.toString() +
-          '.m4a';
+          '.wav';
       await _recorder.start(
         const RecordConfig(
-          encoder: AudioEncoder.aacLc,
-          bitRate: 64000,
-          sampleRate: 24000,
+          encoder: AudioEncoder.wav,
+          bitRate: 256000,
+          sampleRate: 16000,
           numChannels: 1,
         ),
         path: path,
@@ -96,17 +96,17 @@ class _StormVoiceRecorderState extends State<StormVoiceRecorder> {
   }
 
   Future<Uint8List> _readFinalizedRecording(String path) async {
-    // Wait for the MP4 mdat payload after the Android recorder stops.
+    // Wait for the WAV/PCM or AAC container to finalize after stop().
     final file = File(path);
     for (var attempt = 0; attempt < 25; attempt++) {
       if (await file.exists()) {
         final size = await file.length();
-        if (size > 3 * 1024 * 1024) {
-          throw StateError('A gravação excedeu 3 MB.');
+        if (size > 8 * 1024 * 1024) {
+          throw StateError('A gravação excedeu 8 MB.');
         }
         if (size >= 128) {
           final bytes = await file.readAsBytes();
-          if (isCompleteStormM4a(bytes)) return bytes;
+          if (stormVoiceFileType(bytes) != null) return bytes;
         }
       }
       await Future<void>.delayed(const Duration(milliseconds: 200));
@@ -130,7 +130,10 @@ class _StormVoiceRecorderState extends State<StormVoiceRecorder> {
       final url = await widget.onUploadVoice(bytes);
       await widget.sendText('🎤 Mensagem de voz: ' + url);
     } catch (error) {
-      widget.onError('Falha ao enviar voz: ' + error.toString());
+      widget.onError(
+        'Falha ao enviar voz: ' +
+            error.toString().replaceFirst('Bad state: ', ''),
+      );
     } finally {
       if (path != null) {
         try {
@@ -152,47 +155,51 @@ class _StormVoiceRecorderState extends State<StormVoiceRecorder> {
       message: _busy
           ? 'Enviando áudio...'
           : _recording
-          ? 'Toque para enviar áudio'
-          : 'Gravar áudio de até 60 segundos',
+          ? 'Toque para enviar ou solte para concluir'
+          : 'Toque para gravar ou pressione e solte para enviar',
       child: InkWell(
         onTap: _toggle,
-        onLongPress: _recording
-            ? () async {
-                _tick?.cancel();
-                await _recorder.cancel();
-                if (mounted)
-                  setState(() {
-                    _recording = false;
-                    _seconds = 0;
-                  });
-                widget.onError('Gravação cancelada.');
-              }
-            : null,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          constraints: const BoxConstraints(minWidth: 41, minHeight: 46),
-          padding: const EdgeInsets.symmetric(horizontal: 5),
-          child: _busy
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _recording ? Icons.stop_circle_rounded : Icons.mic,
-                      color: _recording ? Colors.red : const Color(0xff1688b5),
-                      size: 25,
-                    ),
-                    if (_recording)
-                      Text(
-                        '0:' + _seconds.toString().padLeft(2, '0'),
-                        style: const TextStyle(fontSize: 9, color: Colors.red),
+        onLongPress: () {
+          if (!_recording && !_busy) _toggle();
+        },
+        onLongPressUp: () {
+          if (_recording && !_busy) _finish();
+        },
+        borderRadius: BorderRadius.circular(9),
+        child: SizedBox(
+          width: 42,
+          height: 44,
+          child: Center(
+            child: _busy
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _recording ? Icons.stop_circle : Icons.mic,
+                        color: _recording
+                            ? const Color(0xffd44544)
+                            : const Color(0xff1688b5),
+                        size: _recording ? 23 : 25,
                       ),
-                  ],
-                ),
+                      if (_recording)
+                        Text(
+                          '0:' + _seconds.toString().padLeft(2, '0'),
+                          style: const TextStyle(
+                            fontSize: 10,
+                            height: 1.0,
+                            color: Color(0xffb73535),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                    ],
+                  ),
+          ),
         ),
       ),
     );
@@ -257,12 +264,13 @@ class _StormVoiceMessageState extends State<StormVoiceMessage> {
       final content = BytesBuilder(copy: false);
       await for (final chunk in response.timeout(const Duration(seconds: 20))) {
         content.add(chunk);
-        if (content.length > 3 * 1024 * 1024) {
-          throw StateError('Áudio acima do limite permitido.');
+        if (content.length > 8 * 1024 * 1024) {
+          throw StateError('Áudio acima de 8 MB.');
         }
       }
       final bytes = content.takeBytes();
-      if (!isCompleteStormM4a(bytes)) {
+      final extension = stormVoiceFileType(bytes);
+      if (extension == null) {
         throw StateError('Áudio incompleto. Peça para reenviar.');
       }
       final directory = await getTemporaryDirectory();
@@ -270,7 +278,8 @@ class _StormVoiceMessageState extends State<StormVoiceMessage> {
         directory.path +
             '/storm_play_' +
             DateTime.now().microsecondsSinceEpoch.toString() +
-            '.m4a',
+            '.' +
+            extension,
       );
       await saved.writeAsBytes(bytes, flush: true);
       _cachedAudioPath = saved.path;

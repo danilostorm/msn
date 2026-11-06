@@ -289,3 +289,56 @@ Manter `buildNumber > 8` na futura versão 0.8.
 - A reprodução no aparelho Android real ainda deve ser validada após
   instalar o APK, porque os testes não substituem o hardware.
 
+
+## Storm MSN Mobile 0.7.2 — voz WAV, anexos, respostas e AdMob
+
+### Voz
+- Substituído o gravador Android AAC/M4A por WAV/PCM mono (16 kHz solicitado)
+  para eliminar o arquivo MP4 truncado gerado no aparelho testado. O app
+  aguarda a estrutura RIFF e os bytes declarados, em vez de enviar mídia
+  ainda não finalizada. Tempo máximo: 60 segundos, limite: 8 MiB.
+- Um toque inicia e outro envia; também é possível pressionar e soltar o
+  microfone para gravar/enviar. Botão com largura fixa de 42 dp e alinhamento
+  central; temporizador enquanto grava. Player aceita WAV e M4A íntegro.
+- Servidor `mobile_audio.py` valida WAV/PCM 16-bit mono 8–48 kHz, ou M4A
+  estruturalmente íntegro. Áudios antigos incompletos continuam retornando
+  HTTP 410 e não podem ser restaurados. Arquivos WAV de 60 segundos em até
+  48 kHz cabem no limite de 8 MiB.
+
+### Mensagens e anexos
+- Menu ao segurar mensagem: **Responder**, **Copiar** e **Apagar somente
+  para mim**. Resposta envia citação textual compatível com o Messenger
+  desktop. O apagar local não sincroniza com o destinatário e não é uma
+  função \"apagar para todos\". Em memória, o histórico ainda é efêmero.
+- `/api/mobile/attachment`: upload HTTP autenticado com tamanho de até
+  8 MiB, bloqueio de executáveis e verificação básica de formato; suporte
+  JPG, PNG, GIF, WebP, PDF, TXT, ZIP, DOCX e XLSX. Links opacos HTTPS
+  compartilhados pelo próprio protocolo MSNP7; o desktop pode abrir o link
+  e o Android exibe cartão de arquivo ou miniatura da foto.
+- Links de anexos expiram após 14 dias, com limpeza oportunística. Quem
+  possui o link pode baixar: não há criptografia ponta a ponta. Não enviar
+  arquivos sensíveis por essa função.
+- Barra inferior mais compacta para telas de 360 dp, com botão de anexo,
+  emojis, microfone centralizado e enviar.
+
+### Google AdMob
+- Aplicativo Android AdMob informado pelo proprietário:
+  `ca-app-pub-2095341126853775~7551403442`.
+- Banner Footer: `ca-app-pub-2095341126853775/4621987778`.
+- Os IDs reais são injetados **somente no build release** via
+  `STORM_ADMOB_APP_ID` (manifestPlaceholder) e
+  `--dart-define=STORM_ADMOB_BANNER_ID=...`.
+- Os builds de teste usam os IDs oficiais de teste do Google para evitar
+  impressões reais durante desenvolvimento. O anúncio fica na área inferior
+  da lista de contatos; não aparece no meio de conversas.
+- A disponibilidade de anúncios reais depende do cadastro/aprovação da
+  unidade no AdMob, das políticas e das configurações de consentimento.
+
+### Validação e limitações
+- 15 testes Flutter passaram, incluindo link seguro de imagem/anexo,
+  integridade de WAV e alinhamento da composição em viewport de 360 dp.
+- Backend testado com conta temporária e limpeza posterior: upload/download
+  WAV, rejeição de truncamento, envio de JPEG e PDF, bloqueio de EXE.
+- Ainda requer teste físico em Android do gravador, galeria, arquivo local,
+  AdMob e abrir anexos. WebRTC e push FCM totalmente encerrado continuam
+  pendentes; sem controle remoto de exclusão de mensagens.

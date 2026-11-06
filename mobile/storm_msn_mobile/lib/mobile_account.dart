@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'msn_protocol.dart';
+import 'storm_m4a.dart';
 
 class StormSessionExpired implements Exception {
   const StormSessionExpired();
@@ -73,8 +74,11 @@ class StormMobileApi {
   }
 
   Future<String> uploadVoice(String token, Uint8List audio) async {
-    if (audio.isEmpty || audio.length > 3 * 1024 * 1024) {
-      throw StateError('Áudio acima de 3 MB.');
+    if (audio.isEmpty || audio.length > 8 * 1024 * 1024) {
+      throw StateError('Áudio acima de 8 MB.');
+    }
+    if (stormVoiceFileType(audio) == null) {
+      throw StateError('A gravação ainda está incompleta. Tente novamente.');
     }
     final data = await _send(
       'POST',
@@ -90,6 +94,36 @@ class StormMobileApi {
     return url;
   }
 
+  Future<String> uploadAttachment(
+    String token,
+    String fileName,
+    Uint8List bytes,
+  ) async {
+    if (bytes.isEmpty || bytes.length > 8 * 1024 * 1024) {
+      throw StateError('Anexo vazio ou acima de 8 MB.');
+    }
+    // HTTP header names and file paths must remain safe and portable.
+    final safeName = fileName.replaceAll(RegExp(r'[^A-Za-z0-9._() -]'), '_');
+    final limitedName = safeName.length > 100
+        ? safeName.substring(safeName.length - 100)
+        : safeName;
+    final response = await _send(
+      'POST',
+      '/api/mobile/attachment',
+      token: token,
+      attachment: bytes,
+      fileName: limitedName,
+    );
+    final value = response['url'];
+    if (value is! String ||
+        !RegExp(
+          r'^https://msn\.hoststorm\.com\.br/api/mobile/attachment/[0-9a-f]{48}$',
+        ).hasMatch(value)) {
+      throw StateError('Endereço do anexo inválido.');
+    }
+    return value;
+  }
+
   Future<void> removeAvatar(String token) async {
     await _send('DELETE', '/api/mobile/avatar', token: token);
   }
@@ -101,6 +135,8 @@ class StormMobileApi {
     String? token,
     Uint8List? image,
     Uint8List? audio,
+    Uint8List? attachment,
+    String? fileName,
   }) async {
     final http = HttpClient();
     http.connectionTimeout = const Duration(seconds: 12);
@@ -119,8 +155,18 @@ class StormMobileApi {
         req.headers.contentType = ContentType('image', 'jpeg');
         req.add(image);
       } else if (audio != null) {
-        req.headers.contentType = ContentType('audio', 'mp4');
+        req.headers.contentType = ContentType(
+          'audio',
+          stormVoiceFileType(audio) == 'wav' ? 'wav' : 'mp4',
+        );
         req.add(audio);
+      } else if (attachment != null) {
+        req.headers.contentType = ContentType.binary;
+        req.headers.set(
+          'X-Storm-Filename',
+          Uri.encodeComponent(fileName ?? 'arquivo.txt'),
+        );
+        req.add(attachment);
       }
       final response = await req.close().timeout(const Duration(seconds: 20));
       final body = await utf8.decoder
@@ -139,6 +185,8 @@ class StormMobileApi {
           throw StateError(
             audio != null
                 ? 'Gravação incompleta. Grave novamente.'
+                : attachment != null
+                ? 'Anexo inválido. Confira o tipo e tamanho do arquivo.'
                 : 'Imagem inválida. Use JPG, PNG ou WebP.',
           );
         }

@@ -16,7 +16,7 @@ from aiohttp import web
 from .mobile_api import _authorized_user, _rate
 
 STORAGE = Path("/data/voice-notes")
-MAX_BYTES = 3 * 1024 * 1024
+MAX_BYTES = 8 * 1024 * 1024
 MAX_AGE_SECONDS = 30 * 86400
 VOICE_RE = re.compile(r"^[a-f0-9]{48}$")
 
@@ -59,6 +59,41 @@ def _valid_m4a(raw: bytes) -> bool:
     return at == len(raw) and moov and mdat
 
 
+def _valid_wav(raw: bytes) -> bool:
+    if len(raw) < 48 or raw[:4] != b"RIFF" or raw[8:12] != b"WAVE":
+        return False
+    if struct.unpack_from("<I", raw, 4)[0] + 8 != len(raw):
+        return False
+    position = 12
+    fmt = audio_data = False
+    while position + 8 <= len(raw):
+        kind = raw[position:position + 4]
+        size = struct.unpack_from("<I", raw, position + 4)[0]
+        end = position + 8 + size
+        if end > len(raw):
+            return False
+        if kind == b"fmt ":
+            if size < 16:
+                return False
+            codec, channels, sample_rate, byte_rate, align, bits = struct.unpack_from(
+                "<HHIIHH", raw, position + 8)
+            if codec != 1 or channels != 1 or bits != 16 or not 8000 <= sample_rate <= 48000:
+                return False
+            if align != 2 or byte_rate != sample_rate * 2:
+                return False
+            fmt = True
+        if kind == b"data" and size >= 3200 and size % 2 == 0:
+            audio_data = True
+        position = end + (size % 2)
+    return fmt and audio_data and position == len(raw)
+
+
+def _voice_type(raw: bytes):
+    if _valid_wav(raw): return ".wav", "audio/wav"
+    if _valid_m4a(raw): return ".m4a", "audio/mp4"
+    return None
+
+
 async def upload_voice(req):
     user = _authorized_user(req)
     if not _rate(req, "voice-upload", 30, 3600):
@@ -66,20 +101,23 @@ async def upload_voice(req):
     if req.content_length and req.content_length > MAX_BYTES:
         raise web.HTTPRequestEntityTooLarge(max_size=MAX_BYTES,
                                              actual_size=req.content_length)
-    if req.content_type not in ("audio/mp4", "audio/x-m4a", "application/octet-stream"):
-        raise web.HTTPUnsupportedMediaType(text="Envie áudio AAC/M4A.")
+    if req.content_type not in ("audio/mp4", "audio/x-m4a", "audio/wav",
+                                 "audio/wave", "application/octet-stream"):
+        raise web.HTTPUnsupportedMediaType(text="Envie áudio WAV ou AAC/M4A.")
     raw = await req.content.read(MAX_BYTES + 1)
     if len(raw) > MAX_BYTES:
         raise web.HTTPRequestEntityTooLarge(max_size=MAX_BYTES,
                                              actual_size=len(raw))
-    if not _valid_m4a(raw):
+    detected = _voice_type(raw)
+    if detected is None:
         raise web.HTTPBadRequest(
-            text="Gravação incompleta. Aguarde finalizar e tente novamente."
+            text="Áudio incompleto ou formato inválido. Grave novamente."
         )
+    extension, mimetype = detected
     STORAGE.mkdir(mode=0o750, parents=True, exist_ok=True)
     key = secrets.token_hex(24)
     tmp = STORAGE / (key + ".tmp")
-    destination = STORAGE / (key + ".m4a")
+    destination = STORAGE / (key + extension)
     try:
         tmp.write_bytes(raw)
         os.chmod(tmp, 0o640)
@@ -87,15 +125,16 @@ async def upload_voice(req):
     finally:
         tmp.unlink(missing_ok=True)
     # Opportunistic retention cleanup, not a background worker.
-    for name in STORAGE.glob("*.m4a"):
-        try:
-            if name.stat().st_mtime < time.time() - MAX_AGE_SECONDS:
-                name.unlink(missing_ok=True)
-        except OSError:
-            continue
+    for pattern in ("*.m4a", "*.wav"):
+        for name in STORAGE.glob(pattern):
+            try:
+                if name.stat().st_mtime < time.time() - MAX_AGE_SECONDS:
+                    name.unlink(missing_ok=True)
+            except OSError:
+                continue
     url = "https://msn.hoststorm.com.br/api/mobile/voice/" + key
     return web.json_response(
-        {"url": url, "format": "audio/mp4", "expires_days": 30},
+        {"url": url, "format": mimetype, "expires_days": 30},
         headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
     )
 
@@ -104,17 +143,18 @@ async def download_voice(req):
     key = req.match_info.get("key", "")
     if not VOICE_RE.fullmatch(key):
         raise web.HTTPNotFound()
-    filename = STORAGE / (key + ".m4a")
-    if not filename.is_file() or time.time() - filename.stat().st_mtime > MAX_AGE_SECONDS:
+    filename = next(
+        (candidate for ext in (".wav", ".m4a")
+         if (candidate := STORAGE / (key + ext)).is_file()), None)
+    if filename is None or time.time() - filename.stat().st_mtime > MAX_AGE_SECONDS:
         raise web.HTTPNotFound()
-    # Existing truncated files cannot be recovered; report accurately.
-    if not _valid_m4a(filename.read_bytes()):
-        raise web.HTTPGone(
-            text="Áudio antigo incompleto. Solicite uma nova gravação."
-        )
+    detected = _voice_type(filename.read_bytes())
+    if detected is None or filename.suffix != detected[0]:
+        raise web.HTTPGone(text="Áudio incompleto. Solicite nova gravação.")
     return web.FileResponse(filename, headers={
-        "Content-Type": "audio/mp4",
-        "Content-Disposition": 'inline; filename="mensagem-de-voz.m4a"',
+        "Content-Type": detected[1],
+        "Content-Disposition": 'inline; filename="mensagem-de-voz' +
+                               detected[0] + '"',
         "Cache-Control": "private, max-age=300",
         "Referrer-Policy": "no-referrer",
         "X-Content-Type-Options": "nosniff",
