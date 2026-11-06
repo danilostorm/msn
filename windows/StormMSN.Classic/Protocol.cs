@@ -3,6 +3,8 @@ using System.Net.WebSockets;
 using System.Security.Cryptography;
 using System.Text;
 
+using System.IO;
+
 namespace StormMSN.Classic;
 
 // A raw MSNP7 byte stream transported over the Storm MSN WSS bridge.
@@ -234,10 +236,10 @@ public sealed class MsnSession : IAsyncDisposable {
                     break;
                 case "RNG":
                     if (w.Length >= 6 && w[3] == "CKI" && w[5].Contains('@')) {
-                        string peer = w[5].ToLowerInvariant();
-                        lock (_sync) Ensure(peer);
+                        string incomingPeer = w[5].ToLowerInvariant();
+                        lock (_sync) Ensure(incomingPeer);
                         ContactsChanged?.Invoke();
-                        _ = OpenIncoming(peer, w[1], w[4]);
+                        _ = OpenIncoming(incomingPeer, w[1], w[4]);
                     }
                     break;
             }

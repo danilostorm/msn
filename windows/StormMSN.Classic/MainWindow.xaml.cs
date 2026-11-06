@@ -11,6 +11,8 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 
+using System.IO;
+
 namespace StormMSN.Classic;
 
 public partial class MainWindow : Window {
