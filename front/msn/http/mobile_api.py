@@ -8,6 +8,7 @@ from pathlib import Path
 
 from aiohttp import web
 from PIL import Image, ImageOps, UnidentifiedImageError
+from . import avatar_shared
 from sqlalchemy import func
 
 from core.conn import Conn
@@ -16,7 +17,7 @@ import settings
 
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+\-]{1,64}@[A-Za-z0-9.\-]{3,190}$")
 USER_RE = re.compile(r"^[A-Za-z0-9_.\-]{3,24}$")
-AVATAR_DIR = Path("/data/avatars")
+AVATAR_DIR = avatar_shared.AVATAR_DIR
 RESP_HEADERS = {
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
@@ -90,63 +91,56 @@ async def mobile_profile(req):
 
 
 async def avatar_get(req):
-    email = req.match_info.get("email", "").lower()
+    email = req.match_info.get("email", "").strip().lower()
     if not EMAIL_RE.fullmatch(email):
         raise web.HTTPNotFound()
     with Conn(settings.DB).session() as sess:
         user = sess.query(DBUser).filter(func.lower(DBUser.email) == email).one_or_none()
         if not user:
             raise web.HTTPNotFound()
-        path = AVATAR_DIR / (user.uuid + ".jpg")
-    if not path.is_file():
+        uuid = user.uuid
+    source = avatar_shared.avatar_path(uuid, req.app.get("backend"))
+    if source is None:
         raise web.HTTPNotFound()
-    return web.FileResponse(
-        path,
-        headers={
-            "Content-Type": "image/jpeg",
-            "Cache-Control": "public, max-age=120",
-            "X-Content-Type-Options": "nosniff",
-        },
-    )
+    ext = source.suffix.lower()
+    mime = ("image/jpeg" if ext in (".jpeg", ".jpg")
+            else "image/png" if ext == ".png"
+            else "image/gif" if ext == ".gif" else "image/webp")
+    return web.FileResponse(source, headers={
+        "Content-Type": mime,
+        "Cache-Control": "no-cache, must-revalidate",
+        "X-Content-Type-Options": "nosniff",
+        "Access-Control-Allow-Origin": "https://msn.hoststorm.com.br",
+    })
 
 
 async def avatar_post(req):
     user = _authorized_user(req)
     if not _rate(req, "avatar-upload", 20, 3600):
-        raise web.HTTPTooManyRequests()
-    if req.content_length and req.content_length > 2 * 1024 * 1024:
-        raise web.HTTPRequestEntityTooLarge(max_size=2*1024*1024, actual_size=req.content_length)
-    raw = await req.content.read(2 * 1024 * 1024 + 1)
-    if not raw or len(raw) > 2 * 1024 * 1024:
-        raise web.HTTPRequestEntityTooLarge(max_size=2*1024*1024, actual_size=len(raw))
+        raise web.HTTPTooManyRequests(text="Muitas imagens enviadas.")
+    limit = 4 * 1024 * 1024
+    if req.content_length and req.content_length > limit:
+        raise web.HTTPRequestEntityTooLarge(max_size=limit,
+                                             actual_size=req.content_length)
+    raw = await req.content.read(limit + 1)
+    if not raw or len(raw) > limit:
+        raise web.HTTPRequestEntityTooLarge(max_size=limit,
+                                             actual_size=len(raw))
     try:
-        with Image.open(io.BytesIO(raw)) as img:
-            if img.width * img.height > 16_000_000:
-                raise ValueError("Dimensão excessiva.")
-            if img.format not in ("JPEG", "PNG", "WEBP"):
-                raise ValueError("Formato inválido.")
-            img = ImageOps.exif_transpose(img)
-            img = ImageOps.fit(img.convert("RGB"), (256, 256), method=Image.Resampling.LANCZOS)
-            out = io.BytesIO()
-            img.save(out, format="JPEG", quality=85, optimize=True)
-            processed = out.getvalue()
+        avatar_shared.write_shared_avatar(user["uuid"], raw)
     except (UnidentifiedImageError, OSError, ValueError):
-        raise web.HTTPBadRequest(text="Use uma imagem JPG, PNG ou WebP válida.")
-    AVATAR_DIR.mkdir(parents=True, exist_ok=True)
-    destination = AVATAR_DIR / (user["uuid"] + ".jpg")
-    temporary = AVATAR_DIR / (user["uuid"] + "." + secrets.token_hex(6) + ".tmp")
-    try:
-        temporary.write_bytes(processed)
-        temporary.chmod(0o644)
-        os.replace(temporary, destination)
-    finally:
-        temporary.unlink(missing_ok=True)
-    return web.json_response({"ok": True, "avatar_url": "/api/mobile/avatar/" + user["email"]}, headers=RESP_HEADERS)
+        raise web.HTTPBadRequest(
+            text="Imagem inválida. Envie JPG, PNG ou WebP com até 4 MB."
+        )
+    return web.json_response({
+        "ok": True,
+        "avatar_url": "/api/mobile/avatar/" + user["email"],
+    }, headers=RESP_HEADERS)
 
 
 async def avatar_delete(req):
     user = _authorized_user(req)
-    (AVATAR_DIR / (user["uuid"] + ".jpg")).unlink(missing_ok=True)
+    avatar_shared.remove_shared_avatar(user["uuid"])
     return web.json_response({"ok": True}, headers=RESP_HEADERS)
 
 

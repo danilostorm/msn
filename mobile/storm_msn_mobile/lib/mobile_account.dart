@@ -39,8 +39,8 @@ class StormMobileApi {
   }
 
   Future<void> uploadAvatar(String token, Uint8List image) async {
-    if (image.isEmpty || image.length > 2 * 1024 * 1024) {
-      throw StateError('Escolha uma imagem de até 2 MB.');
+    if (image.isEmpty || image.length > 4 * 1024 * 1024) {
+      throw StateError('Escolha uma imagem de até 4 MB.');
     }
     await _send('POST', '/api/mobile/avatar', token: token, image: image);
   }
@@ -102,10 +102,20 @@ class StormMobileApi {
           .timeout(const Duration(seconds: 15));
       if (response.statusCode != 200) {
         if (response.statusCode == 401) {
-          throw StateError('Usuário, e-mail ou senha inválidos.');
+          throw StateError(
+            token == null
+                ? 'Usuário, e-mail ou senha inválidos.'
+                : 'Sua sessão expirou. Saia e entre novamente para atualizar a foto.',
+          );
+        }
+        if (response.statusCode == 403) {
+          throw StateError('Operação não autorizada para esta conta.');
+        }
+        if (response.statusCode == 400 || response.statusCode == 415) {
+          throw StateError('Imagem inválida. Use JPG, PNG ou WebP.');
         }
         if (response.statusCode == 413) {
-          throw StateError('Arquivo acima do limite de tamanho.');
+          throw StateError('Arquivo acima do limite de 4 MB.');
         }
         if (response.statusCode == 429) {
           throw StateError('Muitas tentativas. Aguarde um pouco.');

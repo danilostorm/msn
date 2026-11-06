@@ -190,3 +190,46 @@ Pro. OpenWA é um gateway para WhatsApp, não um substituto do protocolo MSN.
   exigindo as credenciais oficiais. Nunca publicar um APK não assinado.
 - Testes unitários Flutter: 11 aprovados antes do build nativo. Não houve
   testes completos com dispositivo Android real nesta sessão.
+
+## Versão 0.7.0 — avatares WLM 2009 ↔ Android + câmera
+
+- Recomposta e publicada a camada de fotos compartilhada do Storm MSN.
+  O cliente Windows Live Messenger 2009 usa StorageService SOAP
+  `UserTileStatic` e identificadores MSNObject/`SHA1D`, não o endpoint
+  `/api/mobile/avatar/{email}` inventado na primeira versão Android.
+- Backend `avatar_shared.py` sincroniza o diretório persistente
+  `/data/storage/dp` (desktop) e `/data/avatars` (Android).
+  Cada upload cria JPG normalizado em 256x256 e miniatura 21x21.
+  GetProfile e `/storage/usertile/{uuid}/static|small` enxergam essa foto.
+- O diretório legado anterior era `storage/dp` relativo a `/app`,
+  e não persistia no volume Docker. Atualizado para `/data/storage/dp`.
+- Foram encontrados no cache do WLM em Nexus 31 recursos de foto:
+  26 PNGs e 5 GIFs. As cópias foram validadas e armazenadas
+  em `/data/legacy_tiles`, fora do APK e do repositório. A associação
+  com a conta depende do hash `SHA1D` anunciado pelo cliente desktop.
+  NÃO identificar imagens sem hash correspondente para evitar misturar pessoas.
+- A API do Android agora consulta imagens tanto do StorageService quanto do
+  cache MSNObject e usa cabeçalhos de cache para atualização.
+- No Flutter, tocar no próprio avatar abre:
+  **Escolher foto da galeria**, **Tirar foto com a câmera**,
+  **Visualizar** e **Remover**. Imagens enviadas são limitadas a 4 MiB;
+  ImagePicker redimensiona antes do envio (640 px, qualidade 80).
+  Se o token expirou, o aplicativo tenta renovar uma vez apenas se
+  o usuário optou por salvar a senha no Android Keystore.
+- A lista atualiza as URLs dos avatares a cada 90 segundos enquanto conectada
+  e ao retornar ao primeiro plano; uploads/remoções atualizam imediatamente.
+- Testes reais do backend no Docker passaram: criar conta temporária,
+  autenticar por username, enviar PNG via POST autorizado, recuperar JPG
+  pelo endpoint Android e por UserTile desktop, recuperar thumb e deletar
+  via API. A conta de teste foi eliminada.
+- Notificações FCM com app totalmente encerrado ainda precisam de projeto
+  Firebase e configuração do cliente/servidor. Chamadas de áudio/vídeo
+  WebRTC exigem sinalização e TURN autorizados; nenhuma funcionalidade
+  foi afirmada pronta ou substituída por botões falsos.
+- APK release Android: `StormMSN-Mobile-v0.7.0-arm64-RELEASE.apk`,
+  versão 0.7.0 (code 7), 29.234.252 bytes. SHA-256:
+  `4210f1ffa7698e68dc73dfa8dca68b0a6a89aad43a77e75b01f6cccf13056294`.
+  Certificado oficial SHA-256:
+  `376262a5c131986323b359caddd8ba9eb68d6f3f9a1ff89635ae13aed86c25d4`,
+  idêntico à release 0.6.0. Link Playstor confirmado HTTP 200 e digest
+  idêntico ao arquivo original.

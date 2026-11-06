@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -63,6 +64,7 @@ class _StormMsnAppState extends State<StormMsnApp> with WidgetsBindingObserver {
   bool _cancelledLogin = false;
   String? _accountError;
   int _avatarVersion = DateTime.now().millisecondsSinceEpoch;
+  Timer? _avatarRefreshTimer;
   static const _mobileApi = StormMobileApi();
   bool _showPassword = false;
   bool _rememberEmail = false;
@@ -90,6 +92,11 @@ class _StormMsnAppState extends State<StormMsnApp> with WidgetsBindingObserver {
     _notificationCenter.initialize(onTap: _openNotifiedConversation);
     _loadRememberedEmail();
     _restoreSavedLogin();
+    _avatarRefreshTimer = Timer.periodic(const Duration(seconds: 90), (_) {
+      if (mounted && client.online) {
+        setState(() => _avatarVersion = DateTime.now().millisecondsSinceEpoch);
+      }
+    });
   }
 
   Future<void> _loadRememberedEmail() async {
@@ -218,6 +225,9 @@ class _StormMsnAppState extends State<StormMsnApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _appVisible = state == AppLifecycleState.resumed;
+    if (_appVisible && mounted) {
+      setState(() => _avatarVersion = DateTime.now().millisecondsSinceEpoch);
+    }
     if (state == AppLifecycleState.paused && _keepOnline && client.online) {
       _handoffFuture ??= _handoffToBackground();
     } else if (state == AppLifecycleState.resumed) {
@@ -312,6 +322,7 @@ class _StormMsnAppState extends State<StormMsnApp> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _avatarRefreshTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     client.removeListener(_incomingChanged);
     _email.dispose();
@@ -543,6 +554,33 @@ class _StormMsnAppState extends State<StormMsnApp> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _uploadAvatarWithRefresh(
+    StormMobileAccount account,
+    Uint8List bytes,
+  ) async {
+    try {
+      await _mobileApi.uploadAvatar(account.token, bytes);
+    } catch (error) {
+      final message = error.toString().toLowerCase();
+      if (!message.contains('sessão expirou')) rethrow;
+      // Refresh the avatar token only if the user chose encrypted storage.
+      final identifier = await _secureStorage.read(key: 'storm_login_id');
+      final password = await _secureStorage.read(key: 'storm_login_password');
+      if (identifier == null ||
+          password == null ||
+          identifier.isEmpty ||
+          password.isEmpty) {
+        rethrow;
+      }
+      final refreshed = await _mobileApi.signIn(identifier, password);
+      if (refreshed.email.toLowerCase() != account.email.toLowerCase()) {
+        throw StateError('A conta autenticada mudou; saia e entre novamente.');
+      }
+      _account = refreshed;
+      await _mobileApi.uploadAvatar(refreshed.token, bytes);
+    }
+  }
+
   Future<void> _showAvatarOptions() async {
     final account = _account;
     if (account == null) {
@@ -558,9 +596,16 @@ class _StormMsnAppState extends State<StormMsnApp> with WidgetsBindingObserver {
           children: [
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Alterar imagem'),
-              subtitle: const Text('JPG, PNG ou WebP. Até 2 MB.'),
+              title: const Text('Escolher foto da galeria'),
+              subtitle: const Text('JPG, PNG ou WebP. Até 4 MB.'),
               onTap: () => Navigator.pop(context, 'select'),
+            ),
+            ListTile(
+              key: const Key('take-avatar-photo'),
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Tirar foto com a câmera'),
+              subtitle: const Text('Abrir a câmera do celular'),
+              onTap: () => Navigator.pop(context, 'camera'),
             ),
             ListTile(
               leading: const Icon(Icons.image_outlined),
@@ -578,16 +623,17 @@ class _StormMsnAppState extends State<StormMsnApp> with WidgetsBindingObserver {
     );
     if (action == null || !mounted) return;
     try {
-      if (action == 'select') {
+      if (action == 'select' || action == 'camera') {
         final photo = await ImagePicker().pickImage(
-          source: ImageSource.gallery,
-          maxWidth: 1024,
-          maxHeight: 1024,
-          imageQuality: 85,
+          source: action == 'camera' ? ImageSource.camera : ImageSource.gallery,
+          maxWidth: 640,
+          maxHeight: 640,
+          imageQuality: 80,
+          requestFullMetadata: false,
         );
         if (photo == null) return;
         final bytes = await photo.readAsBytes();
-        await _mobileApi.uploadAvatar(account.token, bytes);
+        await _uploadAvatarWithRefresh(account, bytes);
         if (mounted) {
           setState(
             () => _avatarVersion = DateTime.now().millisecondsSinceEpoch,

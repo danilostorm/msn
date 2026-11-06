@@ -1258,6 +1258,10 @@ class MSNPCtrlNS(MSNPCtrl):
 			bs.front_data['msn_msnobj_ddp'] = None
 		else:
 			bs.front_data['msn_msnobj'] = msnobj
+			if msnobj:
+				# Remember the desktop MSNObject SHA1D for Android thumbnail lookup.
+				from .http.avatar_shared import record_msnobj
+				record_msnobj(bs.user.uuid, msnobj)
 		
 		bs.me_update({
 			'substatus': msn_substatus,

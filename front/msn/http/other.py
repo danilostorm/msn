@@ -11,6 +11,7 @@ import base64
 import json
 from markupsafe import Markup
 from aiohttp import web
+from . import avatar_shared
 
 import settings
 from core import models
@@ -694,7 +695,7 @@ async def handle_rst(req: web.Request, rst2: bool = False) -> web.Response:
 	})
 
 def _get_storage_path(uuid: str) -> Path:
-	return Path('storage/dp') / uuid[0:1] / uuid[0:2]
+    return avatar_shared.storage_path(uuid)
 
 def handle_document(req: web.Request, action: Any, type: str, storage_ns: str, user: models.User, cid: str, token: str) -> web.Response:
 	from PIL import Image
@@ -726,19 +727,12 @@ def handle_document(req: web.Request, action: Any, type: str, storage_ns: str, u
 			except:
 				return web.HTTPInternalServerError(text = '')
 			
-			# store display picture as file
-			path = _get_storage_path(user.uuid)
-			path.mkdir(exist_ok = True, parents = True)
-			
-			image_path = path / '{uuid}.{mime}'.format(uuid = user.uuid, mime = mime)
-			
-			image_path.write_bytes(data)
-			
-			thumb = image.resize((21, 21))
-			
-			thumb_path = path / '{uuid}_thumb.png'.format(uuid = user.uuid)
-			thumb.save(str(thumb_path))
-	
+			# Publish WLM desktop photo to persistent storage.
+			try:
+				avatar_shared.write_shared_avatar(user.uuid, data)
+			except (OSError, ValueError):
+				return web.HTTPBadRequest(text='Imagem invalida')
+
 	return render(req, 'msn:storageservice/{}DocumentResponse.xml'.format(type), {
 		'storage_ns': storage_ns,
 		'cid': cid,
@@ -746,19 +740,37 @@ def handle_document(req: web.Request, action: Any, type: str, storage_ns: str, u
 	})
 
 async def handle_usertile(req: web.Request, small: bool = False) -> web.Response:
-	uuid = req.match_info['uuid']
-	storage_path = _get_storage_path(uuid)
-	if not (storage_path.is_dir() and storage_path.exists()):
-		raise web.HTTPNotFound()
-	
-	files = list(storage_path.iterdir())
-	
-	if not files:
-		raise web.HTTPNotFound()
-	
-	ext = files[0].suffix
-	image_path = storage_path / '{}{}{}'.format(uuid, '_thumb' if small else '', ext)
-	return web.HTTPOk(content_type = 'image/{}'.format(ext[1:]), body = image_path.read_bytes())
+    from PIL import Image
+    uuid = req.match_info["uuid"]
+    try:
+        path = avatar_shared.avatar_path(uuid, req.app.get("backend"))
+    except ValueError:
+        raise web.HTTPNotFound()
+    if path is None:
+        raise web.HTTPNotFound()
+    if small:
+        size_path = path.with_name(path.stem + "_thumb" + path.suffix)
+        if size_path.is_file():
+            path = size_path
+        else:
+            try:
+                with Image.open(path) as picture:
+                    thumb = picture.convert("RGB").resize((21, 21))
+                    buffer = BytesIO()
+                    thumb.save(buffer, format="JPEG")
+                    return web.Response(
+                        body=buffer.getvalue(), content_type="image/jpeg",
+                        headers={"Cache-Control": "public, max-age=60",
+                                 "X-Content-Type-Options": "nosniff"})
+            except OSError:
+                raise web.HTTPNotFound()
+    mime = ("jpeg" if path.suffix.lower() in (".jpg", ".jpeg")
+            else path.suffix.lstrip(".").lower())
+    return web.FileResponse(path, headers={
+        "Content-Type": "image/" + mime,
+        "Cache-Control": "public, max-age=60",
+        "X-Content-Type-Options": "nosniff",
+    })
 
 async def handle_debug(req: web.Request) -> web.Response:
 	return render(req, 'msn:debug.html')
