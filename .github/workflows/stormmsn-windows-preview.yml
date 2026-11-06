@@ -30,9 +30,9 @@ jobs:
       - name: Create ZIP
         shell: pwsh
         run: |
-          Compress-Archive -Path "out/*" -DestinationPath "StormMSN-Classic-Windows-x64-v0.1.1-layout-preview.zip" -CompressionLevel Optimal
+          Compress-Archive -Path "out/*" -DestinationPath "StormMSN-Classic-Windows-x64-v0.1.2-glass-preview.zip" -CompressionLevel Optimal
       - uses: actions/upload-artifact@v4
         with:
-          name: StormMSN-Classic-Windows-x64-v0.1.1-layout-preview
-          path: StormMSN-Classic-Windows-x64-v0.1.1-layout-preview.zip
+          name: StormMSN-Classic-Windows-x64-v0.1.2-glass-preview
+          path: StormMSN-Classic-Windows-x64-v0.1.2-glass-preview.zip
           retention-days: 30
