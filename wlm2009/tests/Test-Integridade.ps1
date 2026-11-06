@@ -13,8 +13,19 @@ function Assert-Code([int]$expected, [string]$context) {
     }
 }
 function Invoke-Check([string]$mode, [int]$expected) {
-    $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $tool -Mode $mode -InstallRoot $root -BaselineFile $baseline 2>&1
-    Assert-Code $expected $mode
+    # Falhas esperadas em processos filhos produzem stderr; nao as converta em
+    # NativeCommandError do teste principal, apenas verifique o codigo de saida.
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $tool -Mode $mode -InstallRoot $root -BaselineFile $baseline 2>&1
+        $code = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previous
+    }
+    if ($code -ne $expected) {
+        throw "$mode : codigo esperado $expected, recebido $code : $($output | Out-String)"
+    }
     Write-Output ("$mode esperado=$expected : " + (($output | Out-String).Trim() -replace "[\r\n]+", ' | '))
 }
 
