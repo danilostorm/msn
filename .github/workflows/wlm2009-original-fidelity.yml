@@ -6,6 +6,7 @@ on:
       - feat/wlm2009-original-fidelity
     paths:
       - 'wlm2009/**'
+      - 'integrations/playstor-snes/**'
       - 'front/msn/msnp_sb.py'
       - 'front/msn/http/abservice.py'
       - 'front/msn/tmpl/MsgrConfig.wlm.14.xml'
@@ -30,3 +31,8 @@ jobs:
         shell: powershell
         run: |
           python -m unittest discover -s wlm2009/lab/tests -p 'test_*.py' -v
+      - name: Unit test SNES PlayStor direct Edge launch catalog (offline)
+        shell: powershell
+        run: |
+          node --check integrations/playstor-snes/playstor-snes.js
+          node integrations/playstor-snes/test-catalog.js
