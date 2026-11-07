@@ -13,14 +13,15 @@ spec.loader.exec_module(games)
 CATALOG = b'''<AppDir>
   <Category><CategoryID>SNES</CategoryID><CategoryName>Super Nintendo</CategoryName></Category>
   <Entry><AppID>673</AppID><ID>673</ID><Name>Test</Name>
-    <Type>Game</Type><URL>https://playstor.hoststorm.cloud/?game=673</URL></Entry>
+    <Type>Game</Type><URL>https://playstor.hoststorm.cloud/?play=673</URL></Entry>
 </AppDir>'''
 SOAP_RESULT = b'''<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
  <soap:Body><GetAppEntryResponse><GetAppEntryResult><AppDir>
-   <Entry><AppID>673</AppID><URL>https://playstor.hoststorm.cloud/?game=673</URL></Entry>
+   <Entry><AppID>673</AppID><URL>https://playstor.hoststorm.cloud/?play=673</URL></Entry>
  </AppDir></GetAppEntryResult></GetAppEntryResponse></soap:Body>
 </soap:Envelope>'''
 CONFIG = b'''<MsgrConfig><LocalizedConfig>
+ <AppDirConfig><GamesBrowserURL>https://msn.hoststorm.com.br/AppDirectory/Directory.aspx?from=wlm2009</GamesBrowserURL></AppDirConfig>
  <GamesBrowserURL>https://msn.hoststorm.com.br/AppDirectory/Directory.aspx?from=wlm2009</GamesBrowserURL>
 </LocalizedConfig></MsgrConfig>'''
 
@@ -28,12 +29,12 @@ CONFIG = b'''<MsgrConfig><LocalizedConfig>
 class GamesContractTests(unittest.TestCase):
     def test_catalog_has_numeric_playstor_app(self):
         self.assertEqual(games.get_catalog_entry(CATALOG), (
-            "673", "https://playstor.hoststorm.cloud/?game=673", 1
+            "673", "https://playstor.hoststorm.cloud/?play=673", 1
         ))
 
     def test_single_entry_soap_matches_catalog(self):
         self.assertEqual(games.get_soap_app_entry(SOAP_RESULT), (
-            "673", "https://playstor.hoststorm.cloud/?game=673"
+            "673", "https://playstor.hoststorm.cloud/?play=673"
         ))
 
     def test_exact_original_games_browser_route(self):
@@ -41,6 +42,30 @@ class GamesContractTests(unittest.TestCase):
             games.get_config_games_url(CONFIG),
             "https://msn.hoststorm.com.br/AppDirectory/Directory.aspx?from=wlm2009",
         )
+
+    def test_reject_sibling_only_games_url_from_previous_live_config(self):
+        broken = b'''<MsgrConfig><LocalizedConfig>
+          <AppDirConfig><AppDirPageURL>https://msn.hoststorm.com.br/AppDirectory/Directory.aspx</AppDirPageURL></AppDirConfig>
+          <GamesBrowserURL>https://msn.hoststorm.com.br/AppDirectory/Directory.aspx?from=wlm2009</GamesBrowserURL>
+        </LocalizedConfig></MsgrConfig>'''
+        with self.assertRaisesRegex(ValueError, "nested"):
+            games.get_config_games_url(broken)
+
+    def test_reject_conflicting_legacy_and_native_games_url(self):
+        broken = CONFIG.replace(
+            b'</AppDirConfig>\n <GamesBrowserURL>https://msn.hoststorm.com.br/AppDirectory/Directory.aspx?from=wlm2009',
+            b'</AppDirConfig>\n <GamesBrowserURL>https://evil.example/'
+        )
+        with self.assertRaisesRegex(ValueError, "disagree"):
+            games.get_config_games_url(broken)
+
+    def test_real_wlm14_template_has_nested_and_legacy_game_urls(self):
+        path = Path(__file__).resolve().parents[3] / "front/msn/tmpl/MsgrConfig.wlm.14.xml"
+        root = ET.fromstring(path.read_text(encoding="utf-8"))
+        self.assertEqual(root.findtext("LocalizedConfig/AppDirConfig/GamesBrowserURL"),
+                         games.BASE + "/AppDirectory/Directory.aspx?from=wlm2009")
+        self.assertEqual(root.findtext("LocalizedConfig/GamesBrowserURL"),
+                         games.BASE + "/AppDirectory/Directory.aspx?from=wlm2009")
 
     def test_unknown_host_is_not_allowed(self):
         with self.assertRaises(ValueError):
