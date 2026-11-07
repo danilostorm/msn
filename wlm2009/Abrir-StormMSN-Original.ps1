@@ -57,7 +57,9 @@ if([Diagnostics.Process]::GetCurrentProcess().SessionId -eq 0){
 $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
 $principal=New-Object Security.Principal.WindowsPrincipal($identity)
 if($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){
-  throw 'Nao inicie o WLM 2009 elevado. Abra este script normalmente, sem Executar como administrador.'
+  # Contas Administrator embutidas podem nao possuir token UAC dividido.
+  # A verificacao de sessao grafica ja evita executar o cliente a partir do SSH.
+  Write-Warning 'A conta atual possui privilegios administrativos. Abra o cliente pelo desktop normalmente; nao use Executar como administrador.'
 }
 Start-Process -FilePath $exe -ErrorAction Stop
 Write-Output 'Iniciador chamou apenas o msnmsgr.exe original, sem alterar sua interface.'
