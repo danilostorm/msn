@@ -50,6 +50,7 @@ internal static class StormNativeEmbedHost {
     private static Process guest;
     private static IntPtr guestHwnd;
     private static bool embedded;
+    private static bool resizeTested;
     private static bool finished;
     private static Stopwatch clock;
     private static string reportFile, guestReportFile;
@@ -158,8 +159,15 @@ internal static class StormNativeEmbedHost {
                     SWP_NOZORDER|SWP_FRAMECHANGED|SWP_SHOWWINDOW);
             }
         }
-        if(embedded && File.Exists(guestReportFile)
-           && clock.ElapsedMilliseconds-embeddedAt>800) {
+        if(embedded && !resizeTested && clock.ElapsedMilliseconds-embeddedAt>350) {
+            // Simulate a conversation activity panel being resized. The guest
+            // must stay inside the same laboratory slot across that resize.
+            host.Size = new Size(host.Width+96, host.Height+64);
+            resizeTested=true;
+            FitGuest();
+        }
+        if(embedded && resizeTested && File.Exists(guestReportFile)
+           && clock.ElapsedMilliseconds-embeddedAt>1000) {
             Finish("RESULT_READY");
         }
     }
@@ -169,9 +177,14 @@ internal static class StormNativeEmbedHost {
         try { tick.Stop(); }catch{}
         bool verified=embedded && guestHwnd!=IntPtr.Zero &&
                       GetParent(guestHwnd)==slot.Handle;
-        RECT rect;
+        RECT rect=new RECT();
         bool validRect=(guestHwnd!=IntPtr.Zero) &&
                         GetClientRect(guestHwnd,out rect);
+        int childWidth=validRect ? rect.Right-rect.Left : 0;
+        int childHeight=validRect ? rect.Bottom-rect.Top : 0;
+        bool childSizeMatchesSlot = validRect &&
+             childWidth == slot.ClientSize.Width &&
+             childHeight == slot.ClientSize.Height;
         bool loaded=false, wasm=false, wasmInstantiated=false, webgl=false;
         if(File.Exists(guestReportFile)) {
             string data=File.ReadAllText(guestReportFile);
@@ -192,6 +205,12 @@ internal static class StormNativeEmbedHost {
         lines.Add("AttachedGuestHandle=0x"+guestHwnd.ToInt64().ToString("x"));
         lines.Add("TargetWidth="+slotWidthAtAttach);
         lines.Add("TargetHeight="+slotHeightAtAttach);
+        lines.Add("ResizeTested="+resizeTested);
+        lines.Add("SlotWidthAfterResize="+slot.ClientSize.Width);
+        lines.Add("SlotHeightAfterResize="+slot.ClientSize.Height);
+        lines.Add("ChildWidthAfterResize="+childWidth);
+        lines.Add("ChildHeightAfterResize="+childHeight);
+        lines.Add("ChildSizeMatchesSlot="+childSizeMatchesSlot);
         lines.Add("GuestClientRectReadable="+validRect);
         lines.Add("WebView2PageLoaded="+loaded);
         lines.Add("WebAssemblyReported="+wasm);
