@@ -14,7 +14,7 @@ const fake=[
 const html=mod.renderList(fake,'',1);
 assert(html.includes('A &lt;script&gt;alert(1)&lt;/script&gt;'));
 assert(html.includes('Mario &amp; Luigi'));
-assert(html.includes('https://playstor.hoststorm.cloud/?game=99'));
+assert(html.includes('https://playstor.hoststorm.cloud/?play=99'));
 assert(!html.includes('<script>alert(1)</script>'));
 assert(!html.includes('/api/games/99/rom'));
 const searched=mod.renderList(fake,'Mario',1);
@@ -24,4 +24,9 @@ const directory=mod.xml(fake,null);
 assert(directory.includes('<AppDir>'));
 assert(directory.includes('<AppID>99</AppID>'));
 assert(directory.includes('<Name>Mario &amp; Luigi</Name>'));
+assert(directory.includes('<URL>https://playstor.hoststorm.cloud/?play=99</URL>'));
+assert(!directory.includes('?game='));
+assert(html.includes('Jogar no Microsoft Edge'));
+assert(!html.includes('?game='));
+assert(!directory.includes('<script>'));
 console.log('SNES PLAYSTOR CATALOG UNIT TESTS OK');
