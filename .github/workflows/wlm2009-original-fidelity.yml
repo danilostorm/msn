@@ -23,3 +23,7 @@ jobs:
         shell: powershell
         run: |
           & .\wlm2009\tests\Test-Integridade.ps1
+      - name: Unit test WLM 2009 protocol contract (offline)
+        shell: powershell
+        run: |
+          python -m unittest discover -s wlm2009/lab/tests -p 'test_*.py' -v
