@@ -10,7 +10,7 @@ using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
 internal static class StormPlaystorGameProbe {
-    const string Target = "https://playstor.hoststorm.cloud/?game=673";
+    const string Target = "https://playstor.hoststorm.cloud/?play=673";
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr GetParent(IntPtr hwnd);
     private static Form form;
@@ -57,7 +57,10 @@ internal static class StormPlaystorGameProbe {
                 };
                 view.CoreWebView2.NavigationStarting += delegate(object sender, 
                         CoreWebView2NavigationStartingEventArgs e) {
-                    if (!string.Equals(e.Uri, Target,
+                    Uri requested;
+                    if (!Uri.TryCreate(e.Uri, UriKind.Absolute, out requested) ||
+                        requested.Scheme != Uri.UriSchemeHttps ||
+                        !string.Equals(requested.Host, "playstor.hoststorm.cloud",
                             StringComparison.OrdinalIgnoreCase)) e.Cancel = true;
                 };
                 view.CoreWebView2.NavigationCompleted += async delegate(object sender, 
@@ -72,11 +75,18 @@ internal static class StormPlaystorGameProbe {
                         // Instantiate an original minimal WASM test module in
                         // the embedded renderer. No game assets or accounts used.
                         var js = await view.CoreWebView2.ExecuteScriptAsync(
-                            "(function(){var x={host:location.host,gameId:'673'," +
+                            "(function(){var login=document.getElementById('playstor-login');" +
+                            "var shell=document.getElementById('shell');" +
+                            "var shown=function(el){return !!el&&!el.classList.contains('hidden')&&" +
+                            "getComputedStyle(el).display!=='none';};" +
+                            "var x={host:location.host,playRequested:" +
+                            "new URLSearchParams(location.search).get('play')==='673'," +
                             "wasm:typeof WebAssembly,fetch:typeof fetch," +
+                            "loginVisible:shown(login),shellVisible:shown(shell)," +
+                            "playerApiPresent:!!(window.StormFlixGamePlayer&&" +
+                            "typeof window.StormFlixGamePlayer.open==='function')," +
                             "canvasCount:document.querySelectorAll('canvas').length," +
                             "iframeCount:document.querySelectorAll('iframe').length," +
-                            "passwordInputPresent:!!document.querySelector('input[type=password]')," +
                             "visibleCanvasCount:0,gamePlayerLikely:false};" +
                             "var cv=document.querySelectorAll('canvas');" +
                             "for(var i=0;i<cv.length;i++){var r=cv[i].getBoundingClientRect();" +
