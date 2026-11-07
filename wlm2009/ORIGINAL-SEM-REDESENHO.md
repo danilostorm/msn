@@ -98,3 +98,31 @@ O inventario de integridade passou em um Windows GitHub Actions usando
 **arquivos sinteticos**, com testes de captura, verificação, `.ini` permitido,
 recurso adulterado, removido e adicionado. O script nao foi executado no Nexus
 porque o computador estava offline.
+
+## Iniciador nativo testado no Nexus (06/11/2026)
+
+Abra **`Abrir-StormMSN-Original.cmd`** pelo desktop do Windows.
+O script `Abrir-StormMSN-Original.ps1` verifica somente a integridade
+de presenca dos componentes e as opcoes do Switcher. Ele chama o
+`msnmsgr.exe` original, sem criar nenhuma janela de interface propria.
+
+Para fazer apenas a validacao, sem abrir a aplicacao:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Abrir-StormMSN-Original.ps1 -CheckOnly
+```
+
+**Evidencia no Nexus:** classe de janela **`MSBLWindowClass`**,
+310 × 700 pixels a 96 DPI, criada pelo processo original.
+Foram encontrados `UXCore.dll`, `msgsres.dll` e `escargot.dll`
+carregados pelo WLM, alem dos recursos UIB de login, contatos e conversa.
+A interface original foi aberta, mas o login e as demais funcionalidades
+**ainda nao foram testados ponta a ponta**.
+
+A tentativa de abrir o cliente com tarefa elevada (`RunLevel Highest`)
+coincidiu com um crash em `wldlog.dll`; a execucao interativa
+`RunLevel Limited` abriu a janela sem repetir a falha. Nao sabemos
+a causa precisa do crash. Prefira abrir normalmente, sem
+`Executar como administrador`. Nao altere a DLL sem diagnostico.
+
+Relatorio: [Janela original no Nexus](lab/NEXUS-REAL-WINDOW-2026-11-06.md).
