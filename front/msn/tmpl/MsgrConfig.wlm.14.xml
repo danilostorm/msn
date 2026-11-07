@@ -128,6 +128,7 @@
 			<AppDirPageURL>https://msn.hoststorm.com.br/AppDirectory/Directory.aspx?L=en-us</AppDirPageURL>
 			<AppDirSeviceURL>https://msn.hoststorm.com.br/AppDirectory/AppDirectory.asmx</AppDirSeviceURL>
 			<AppDirVersionURL>https://msn.hoststorm.com.br/AppDirectory/GetAppdirVersion.aspx</AppDirVersionURL>
+			<GamesBrowserURL>https://msn.hoststorm.com.br/AppDirectory/Directory.aspx?from=wlm2009</GamesBrowserURL>
 		</AppDirConfig>
 			<GamesBrowserURL>https://msn.hoststorm.com.br/AppDirectory/Directory.aspx?from=wlm2009</GamesBrowserURL>
 		<Contacts>
