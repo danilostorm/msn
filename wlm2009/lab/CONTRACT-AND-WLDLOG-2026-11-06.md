@@ -106,3 +106,27 @@ novamente na Oracle e retornou `ok=true`.
 
 **Produção:** nenhum contêiner reiniciado, nenhum banco alterado,
 nenhum usuario criado e nenhuma DLL/tema Microsoft modificada.
+
+## Correcao de contatos preparada e testada (ainda nao implantada)
+
+Durante a leitura do metodo `sharing_DeleteMember` em
+`front/msn/http/abservice.py`, foi identificado que a condicao
+`CircleMember` estava **dentro do bloco `PassportMember`**, impossibilitando
+o tratamento normal de remocao de membro de circulo. Os IDs de contatos
+e circulos tambem ficavam compartilhados entre iteracoes, permitindo
+reutilizacao acidental do contato anterior.
+
+**Correcao isolada na branch:** separar corretamente os dois tipos
+de membros e limpar `contact_uuid`/`circle_id` para cada membro.
+Nenhum arquivo visual do WLM foi alterado. O objetivo e preservar
+o comportamento da interface nativa nos servicos SOAP.
+
+**Validacao:** cinco testes de unidade sem dependencia de banco,
+contas, rede ou Microsoft DLL, executados na Oracle com Python 3 e
+aprovados, cobrindo: circulo valido, contato seguido de circulo,
+lista de relacoes proibida, ID de circulo invalido e estado nao aceito.
+O GitHub Actions Windows tambem aprovou os testes de regressao.
+
+**Limite:** os testes usam servicos simulados; nao substituem um
+teste com conta descartavel e o WLM 2009 original em ambiente isolado.
+**A correcao NAO foi implantada na producao.**
