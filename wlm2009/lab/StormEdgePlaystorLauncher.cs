@@ -207,7 +207,8 @@ internal static class StormEdgePlaystorLauncher {
                         // without opening any browser other than WebView2.
                         string clicked=await web.CoreWebView2.ExecuteScriptAsync(
                            "(function(){var a=document.querySelector('a.play');" +
-                           "if(!a||!/^https:\\\/\\\/playstor\\.hoststorm\\.cloud\\\/\\?play=[0-9]+$/i.test(a.href))return false;" +
+                            "var p='https://playstor.hoststorm.cloud/?play=';" +
+                            "if(!a||a.href.indexOf(p)!==0||!/^[0-9]+$/.test(a.href.slice(p.length)))return false;" +
                            "a.click();return true;})()");
                         if(clicked!="true")Finish("DIRECT_PLAYER_LINK_MISSING");
                         return;
