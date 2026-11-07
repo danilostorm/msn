@@ -6,6 +6,9 @@ on:
       - feat/wlm2009-original-fidelity
     paths:
       - 'wlm2009/**'
+      - 'front/msn/msnp_sb.py'
+      - 'front/msn/http/abservice.py'
+      - 'front/msn/tmpl/MsgrConfig.wlm.14.xml'
       - '.github/workflows/wlm2009-original-fidelity.yml'
   workflow_dispatch:
 
