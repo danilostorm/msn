@@ -34,7 +34,7 @@ async function games(){
  return saved;
 }
 const style='body{font:13px Arial,Verdana,sans-serif;color:#164166;margin:0;background:#e9f3fc}.frame{max-width:870px;margin:0 auto;background:#fff;min-height:100vh}.head{padding:16px;background:#137bad;color:white;border-bottom:4px solid #82d0eb}.head b{font-size:22px}.main{padding:14px}.note{background:#eaf6ff;padding:10px;border:1px solid #c4e5f7;line-height:1.5}.finder{padding:14px 0}.finder input{padding:7px;width:60%;border:1px solid #8db5d2}.finder button{padding:7px;background:#0586bc;border:1px solid #0481b3;color:white}.tile{display:inline-block;vertical-align:top;width:45%;min-width:238px;margin:0 1.5% 10px 0;border:1px solid #d3e8f4;height:148px;overflow:hidden;background:#f8fdff}.cover{float:left;width:104px;padding:8px}.cover img{max-width:90px;max-height:122px}.detail{padding:9px 4px;overflow:hidden}.detail strong{display:block;height:50px;overflow:hidden;font-size:14px}.sub{font-size:11px;color:#668094;margin:6px 0 10px}.play{background:#007eb5;color:#fff;text-decoration:none;display:inline-block;padding:8px;font-weight:bold}.foot{padding:10px;color:#5a6e80;border-top:1px solid #dce9f4;font-size:11px}.pages{text-align:center;padding:18px}.pages a{color:#006da0;margin:0 12px}.empty{padding:25px}@media(max-width:560px){.tile{width:96%;min-width:0}}';
-function renderList(list,q,page){
+function renderList(list,q,page,edgeBridge=false){
  const query=q.toLocaleLowerCase().trim();
  const matches=query?list.filter(g=>g.title.toLocaleLowerCase().indexOf(query)!==-1):list;
  const totalPages=Math.max(1,Math.ceil(matches.length/24));
@@ -42,14 +42,15 @@ function renderList(list,q,page){
  const tiles=matches.slice((page-1)*24,page*24).map(g=>'<div class="tile"><div class="cover">'+
   (g.cover?'<img src="'+esc(g.cover)+'" width="90" height="120" alt="">':'SNES')+
   '</div><div class="detail"><strong>'+esc(g.title)+'</strong><div class="sub">Super Nintendo · PlayStor</div>'+
-  '<a class="play" target="_blank" rel="noopener noreferrer" href="'+PLAY+'/?play='+g.id+'">Jogar no Microsoft Edge</a></div></div>').join('');
- const path='/AppDirectory/Directory.aspx?q='+encodeURIComponent(q);
+  '<a class="play" target="_blank" rel="noopener noreferrer" href="'+PLAY+'/?play='+g.id+'">Abrir no navegador</a>'+
+  (edgeBridge?'<a class="play" href="stormmsn-game://play/'+g.id+'">Jogar com Edge WebView2</a>':'')+'</div></div>').join('');
+ const path='/AppDirectory/Directory.aspx?q='+encodeURIComponent(q)+(edgeBridge?'&edge=1':'');
  const pages='<div class="pages">'+(page>1?'<a href="'+esc(path+'&page='+(page-1))+'">Anterior</a>':'')+
   'Página '+page+' de '+totalPages+(page<totalPages?'<a href="'+esc(path+'&page='+(page+1))+'">Próxima</a>':'')+'</div>';
  return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Storm MSN Jogos — SNES PlayStor</title><style>'+style+'</style></head><body><div class="frame">'+
  '<div class="head"><b>Storm MSN · Jogos</b><div>Catálogo SNES conectado ao PlayStor</div></div><div class="main">'+
- '<div class="note"><b>Teste SNES:</b> jogos abertos diretamente no player pelo navegador Microsoft Edge, após login na conta PlayStor. A integração WebView2 na área original de jogos do Messenger ainda está em desenvolvimento. Partidas entre contatos ainda não são sincronizadas.</div>'+
- '<form class="finder" method="get" action="/AppDirectory/Directory.aspx"><label for="q">Pesquisar jogo: </label><input name="q" id="q" maxlength="80" value="'+esc(q)+'" placeholder="Mario, Zelda, Donkey Kong"><button>Buscar</button></form>'+
+ '<div class="note"><b>Teste SNES:</b> jogos abertos no PlayStor com login próprio. O modo opcional Edge WebView2 é ativado por edge=1 e requer o iniciador instalado neste Windows. A integração ao painel original do Messenger ainda está em desenvolvimento; partidas entre contatos não são sincronizadas.</div>'+
+ '<form class="finder" method="get" action="/AppDirectory/Directory.aspx">'+(edgeBridge?'<input type="hidden" name="edge" value="1">':'')+'<label for="q">Pesquisar jogo: </label><input name="q" id="q" maxlength="80" value="'+esc(q)+'" placeholder="Mario, Zelda, Donkey Kong"><button>Buscar</button></form>'+
  '<p>'+matches.length+' jogos encontrados · '+list.length+' no catálogo SNES</p>'+(tiles||'<div class="empty">Nenhum jogo encontrado.</div>')+pages+
  '</div><div class="foot">PlayStor fornece apenas metadados e capas neste catálogo; ROMs exigem conta PlayStor. Projeto independente.</div></div></body></html>';
 }
@@ -85,7 +86,7 @@ async function handle(req,res){
   if(req.method==='GET'&&(path==='/AppDirectory/Directory.aspx'||path==='/AppDirectory/Games.aspx')){
    const list=await games(),q=(u.searchParams.get('q')||'').slice(0,80);
    const page=Math.max(1,Math.min(1000,parseInt(u.searchParams.get('page'),10)||1));
-   respond(res,200,'text/html; charset=utf-8',renderList(list,q,page));return;
+   respond(res,200,'text/html; charset=utf-8',renderList(list,q,page,u.searchParams.get('edge')==='1'));return;
   }
   if(path==='/AppDirectory/AppDirectory.asmx'){
    const list=await games();
