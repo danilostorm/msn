@@ -99,6 +99,32 @@ Para desfazer:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "E:\StormMSN-Research\lab-native-2009\webview2-poc\Register-StormMSNEdgeProtocol.ps1" -Action Uninstall
 ```
 
+
+## Publicação do modo Edge opcional
+
+O serviço do catálogo `storm-msn-snes-catalog.service` na Oracle foi
+atualizado após `node --check`, testes de unidade e comparação de
+diferenças com o arquivo anterior.
+
+- URL pública de teste:
+  `https://msn.hoststorm.com.br/AppDirectory/Directory.aspx?edge=1`.
+- No modo `edge=1`, botões `stormmsn-game://play/<id>` são exibidos.
+- Sem `edge=1`, o catálogo não contém nenhum deep link especial e
+  continua servindo URLs normais `https://playstor.hoststorm.cloud/?play=<id>`.
+- SOAP AppDirectory permanece com links HTTPS normais, nunca com o
+  protocolo específico do Nexus.
+- Busca e paginação preservam o opt-in.
+- O gateway voltou a `active` e a URL pública com `edge=1` foi
+  validada por HTTP.
+- Backup do servidor:
+  `/usr/local/libexec/storm-msn-ha/playstor-snes.js.pre-bridge-20261106-025146.backup`.
+- SHA-256 publicado:
+  `715641b086c4759c8752a1ebc0a0f0bc1739233f0f524ff3890ed32f0242d87f`.
+
+**Não** foi necessário alterar o contêiner de produção, configurações
+de autenticação, banco, arquivos Microsoft ou navegador padrão.
+A ponte segue dependente do programa Edge instalado **localmente**.
+
 ## Restrições e trabalho pendente
 
 1. É necessário abrir uma conversa controlada do Messenger original
