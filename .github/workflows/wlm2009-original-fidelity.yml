@@ -36,3 +36,8 @@ jobs:
         run: |
           node --check integrations/playstor-snes/playstor-snes.js
           node integrations/playstor-snes/test-catalog.js
+      - name: Test Messenger Plus native games menu bridge
+        shell: powershell
+        run: |
+          node --check wlm2009/plus-playstor/Main.js
+          node wlm2009/plus-playstor/tests/test_plus_playstor.js
