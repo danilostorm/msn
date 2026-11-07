@@ -67,10 +67,20 @@ internal static class StormWebView2EmbedGuest {
                             Record("NAVIGATION_FAIL", e.WebErrorStatus.ToString());
                             return;
                         }
+                        // Instantiate an original minimal WASM test module in
+                        // the embedded renderer. No game assets or accounts used.
                         var js = await view.CoreWebView2.ExecuteScriptAsync(
-                            "JSON.stringify({wasm:typeof WebAssembly," +
-                            "fetch:typeof fetch,playstor:!!document.body &&" +
-                            " document.body.innerText.indexOf('PlayStor') >= 0})");
+                            "(async function() { " +
+                            "var x={wasm:typeof WebAssembly,fetch:typeof fetch," +
+                            "playstor:!!document.body&&document.body.innerText.indexOf('PlayStor')>=0," +
+                            "wasmInstantiate:false,webgl:false};" +
+                            "try { var m=await WebAssembly.instantiate(new Uint8Array([0,97,115,109,1,0,0,0]));" +
+                            "x.wasmInstantiate=!!m.instance; } catch(e) {}" +
+                            "try { var c=document.createElement('canvas');" +
+                            "x.webgl=!!(c.getContext('webgl2')||c.getContext('webgl'));" +
+                            "} catch(e) {}" +
+                            "return JSON.stringify(x); })()");
+
                         Record("OK", js);
                     } catch (Exception ex) {
                         Record("JS_" + ex.GetType().Name, "unknown");
