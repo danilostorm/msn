@@ -423,7 +423,7 @@ def messagedata_from_msnp(sender: User, sender_pop_id: Optional[str], ack: str, 
 	except (ValueError, UnicodeDecodeError):
 		pass
 	
-	content_type = headers.get_content_type() if headers is not None else None
+	content_type = headers.get_content_type() if headers is not None and headers.get('Content-Type') is not None else None
 	if content_type is not None:
 		if content_type == 'text/x-msmsgscontrol':
 			type = MessageType.Typing
@@ -446,7 +446,7 @@ def messagedata_from_msnp(sender: User, sender_pop_id: Optional[str], ack: str, 
 			text = "(Unsupported MSNP Content-Type)"
 		elif content_type == 'text/plain':
 			type = MessageType.Chat
-			text = body_raw.decode('utf-8')
+			text = body_raw.decode('utf-8', errors='replace')
 		else:
 			type = MessageType.Chat
 			text = "(Unsupported MSNP Content-Type)"
