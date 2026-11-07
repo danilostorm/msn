@@ -47,8 +47,9 @@ def probe_msnp(host: str, port: int, timeout: float) -> dict:
             + PROBE_ADDRESS
             + b"\r\n"
         )
-        cvr = read_until(sock, b"CVR 101 ")
-        cvr = read_until(sock, b"\r\n") if b"\r\n" not in cvr else cvr
+        # Read the entire CVR line in ONE buffer. TCP may fragment at any
+        # boundary; reading the prefix separately can lose earlier bytes.
+        cvr = read_until(sock, b"\r\n")
         if b"CVR 101 " not in cvr or VERSION not in cvr:
             raise ValueError("CVR response did not identify WLM 2009")
         sock.sendall(b"USR 102 SSO I " + PROBE_ADDRESS + b"\r\n")
