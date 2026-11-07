@@ -64,7 +64,10 @@ def functions_under_test():
 class NativePayloadRegressionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.receive, cls.send = functions_under_test()
+        # Avoid binding AST-extracted module functions as instance methods.
+        receive, send = functions_under_test()
+        cls.receive = staticmethod(receive)
+        cls.send = staticmethod(send)
 
     def invoke(self, data: bytes, ack: str = "D"):
         sender = SimpleNamespace(email="synthetic@example.invalid")
