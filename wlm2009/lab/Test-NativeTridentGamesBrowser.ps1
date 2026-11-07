@@ -72,8 +72,31 @@ try {
             $state.error = 'DOM_ACCESS_' + $_.Exception.GetType().Name
         }
     }
+    $runtimeFeatures = [ordered]@{
+        WebAssembly = 'unknown'
+        WebSocket = 'unknown'
+        fetch = 'unknown'
+        canvas = 'unknown'
+    }
+    if ($documentExists) {
+        foreach ($feature in @('WebAssembly','WebSocket','fetch')) {
+            try {
+                $value = $browser.Document.InvokeScript('eval', @('typeof ' + $feature))
+                $runtimeFeatures[$feature] = [string]$value
+            } catch {
+                $runtimeFeatures[$feature] = 'unavailable'
+            }
+        }
+        try {
+            $value = $browser.Document.InvokeScript('eval', @("typeof document.createElement('canvas').getContext"))
+            $runtimeFeatures.canvas = [string]$value
+        } catch {
+            $runtimeFeatures.canvas = 'unavailable'
+        }
+    }
     $result = [ordered]@{
         test = 'Windows WebBrowser/Trident - public GamesBrowserURL'
+        browserEngineFeatures = $runtimeFeatures
         executionSession = [Diagnostics.Process]::GetCurrentProcess().SessionId
         documentCompleted = [bool]$state.completed
         readyState = [string]$browser.ReadyState
