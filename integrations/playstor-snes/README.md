@@ -10,7 +10,7 @@ O menu de jogos do **Windows Live Messenger 2009** aponta para o catálogo SNES 
 - Versão do catálogo: `https://msn.hoststorm.com.br/AppDirectory/GetAppdirVersion.aspx`
 - Metadados experimentais: `https://msn.hoststorm.com.br/AppDirectory/AppDirectory.asmx`
 - Catálogo de origem: `https://playstor.hoststorm.cloud/api/games?system=snes`
-- Jogos individuais: `https://playstor.hoststorm.cloud/?game=<ID>`, com login no PlayStor.
+- Jogos individuais: `https://playstor.hoststorm.cloud/?play=<ID>`, que abre diretamente o player depois da autenticação normal do PlayStor. O código do PlayStor mantém `?game=<ID>` para páginas de detalhes.
 
 Foram identificados **230 registros SNES** em 05/11/2026, consultados em tempo real. O serviço aceita pesquisa, apresenta capas públicas e pagina 24 jogos por página. **Não serve ROMs nem transmite credenciais do PlayStor.** O PlayStor protege as ROMs com login próprio.
 
@@ -45,7 +45,7 @@ curl -fsS 'https://msn.hoststorm.com.br/Config/MsgrConfig.asmx?ver=14.0.8117' | 
 
 Foram verificados HTTP 200, catálogo de 230 jogos, links de jogo, busca, sanitização HTML/XML, configuração WLM 2009 e continuidade do MSN (container e monitor da Oracle saudáveis).
 
-**Compatibilidade:** o catálogo HTML foi feito para o navegador antigo incorporado ao WLM 2009, mas o comportamento do botão Jogos **ainda depende de validação com o cliente real**. A emulação SNES é moderna (WebAssembly/JavaScript), portanto o link abre o PlayStor em um navegador atual; não roda dentro do motor IE legado. Não há sincronização multiplayer, convite nativo, controle remoto compartilhado nem execução de ROM sem login.
+**Compatibilidade:** o catálogo HTML foi feito para o navegador antigo incorporado ao WLM 2009, mas o comportamento do botão Jogos **ainda depende de validação com o cliente real**. A emulação SNES é moderna (WebAssembly/JavaScript), portanto o link de **Jogar no Microsoft Edge** abre o player com `?play=<ID>`; a incorporação WebView2 diretamente na área de jogos do Messenger ainda depende de validação do host DirectUI. Não existe bypass de login. Não há sincronização multiplayer, convite nativo, controle remoto compartilhado nem execução de ROM sem login.
 
 Os endpoints SOAP `AppDirectory.asmx` e de versão são **experimentais** e não alegam implementar integralmente o SDK de atividades do MSN; podem precisar de ajustes conforme capturas reais do WLM 2009.
 
