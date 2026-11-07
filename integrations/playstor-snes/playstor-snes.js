@@ -45,11 +45,14 @@ function renderList(list,q,page,edgeBridge=false){
   '<a class="play" target="_blank" rel="noopener noreferrer" href="'+PLAY+'/?play='+g.id+'">Abrir no navegador</a>'+
   (edgeBridge?'<a class="play" href="stormmsn-game://play/'+g.id+'">Jogar com Edge WebView2</a>':'')+'</div></div>').join('');
  const path='/AppDirectory/Directory.aspx?q='+encodeURIComponent(q)+(edgeBridge?'&edge=1':'');
+ const modeUrl='/AppDirectory/Directory.aspx?q='+encodeURIComponent(q)+'&page='+page+(edgeBridge?'':'&edge=1');
+ const modeText=edgeBridge?'Desativar modo experimental Edge WebView2':'Ativar modo experimental Edge WebView2 (Nexus)';
  const pages='<div class="pages">'+(page>1?'<a href="'+esc(path+'&page='+(page-1))+'">Anterior</a>':'')+
   'Página '+page+' de '+totalPages+(page<totalPages?'<a href="'+esc(path+'&page='+(page+1))+'">Próxima</a>':'')+'</div>';
  return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Storm MSN Jogos — SNES PlayStor</title><style>'+style+'</style></head><body><div class="frame">'+
  '<div class="head"><b>Storm MSN · Jogos</b><div>Catálogo SNES conectado ao PlayStor</div></div><div class="main">'+
  '<div class="note"><b>Teste SNES:</b> jogos abertos no PlayStor com login próprio. O modo opcional Edge WebView2 é ativado por edge=1 e requer o iniciador instalado neste Windows. A integração ao painel original do Messenger ainda está em desenvolvimento; partidas entre contatos não são sincronizadas.</div>'+
+ '<p><a href="'+esc(modeUrl)+'">'+modeText+'</a></p>'+
  '<form class="finder" method="get" action="/AppDirectory/Directory.aspx">'+(edgeBridge?'<input type="hidden" name="edge" value="1">':'')+'<label for="q">Pesquisar jogo: </label><input name="q" id="q" maxlength="80" value="'+esc(q)+'" placeholder="Mario, Zelda, Donkey Kong"><button>Buscar</button></form>'+
  '<p>'+matches.length+' jogos encontrados · '+list.length+' no catálogo SNES</p>'+(tiles||'<div class="empty">Nenhum jogo encontrado.</div>')+pages+
  '</div><div class="foot">PlayStor fornece apenas metadados e capas neste catálogo; ROMs exigem conta PlayStor. Projeto independente.</div></div></body></html>';
