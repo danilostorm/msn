@@ -130,15 +130,17 @@ def sharing_DeleteMember(req: web.Request, header: Any, action: Any, bs: Backend
 	detail = user.detail
 	assert detail is not None
 	
-	contact_uuid = None
-	circle_id = None
-	
+
 	memberships = action.findall('.//{*}memberships/{*}Membership')
 	for membership in memberships:
 		lst = models.Lst.Parse(str(find_element(membership, 'MemberRole')))
 		assert lst is not None
 		members = membership.findall('.//{*}Members/{*}Member')
 		for member in members:
+			# IDs must be scoped to EACH member. A previous PassportMember must
+			# not accidentally be deleted again when a CircleMember follows.
+			contact_uuid = None
+			circle_id = None
 			member_type = member.get('{http://www.w3.org/2001/XMLSchema-instance}type')
 			if member_type == 'PassportMember':
 				if find_element(member, 'Type') == 'Passport' and find_element(member, 'State') == 'Accepted':
@@ -148,10 +150,13 @@ def sharing_DeleteMember(req: web.Request, header: Any, action: Any, bs: Backend
 						email = find_element(member, 'PassportName')
 						contact_uuid = backend.util_get_uuid_from_email(email or '')
 					assert contact_uuid is not None
-				elif member_type == 'CircleMember':
-					if find_element(member, 'Type') == 'Circle' and find_element(member, 'State') == 'Accepted':
-						circle_id = find_element(member, 'CircleId')
-					assert circle_id is not None
+			elif member_type == 'CircleMember':
+				# This branch was incorrectly nested under PassportMember,
+				# making it unreachable for WLM 2009 circle membership updates.
+				if find_element(member, 'Type') == 'Circle' and find_element(member, 'State') == 'Accepted':
+					circle_id = find_element(member, 'CircleId')
+					if circle_id is None:
+						return web.HTTPInternalServerError()
 			if contact_uuid is not None:
 				if contact_uuid not in detail.contacts:
 					return render(req, 'msn:sharing/Fault.memberdoesnotexist.xml', status = 500)
