@@ -92,14 +92,29 @@ def get_soap_app_entry(doc: bytes) -> tuple[str, str]:
 
 
 def get_config_games_url(doc: bytes) -> str:
+    # Reverse-engineered original WLM 2009 native lookup:
+    # LocalizedConfig/AppDirConfig/GamesBrowserURL. A sibling
+    # LocalizedConfig/GamesBrowserURL alone must NOT count as compatible.
     root = ET.fromstring(doc)
-    values = [(node.text or "").strip() for node in root.iter() if local(node.tag) == "GamesBrowserURL"]
-    if len(values) != 1:
-        raise ValueError("WLM 2009 configuration missing GamesBrowserURL")
-    if values[0] != BASE + "/AppDirectory/Directory.aspx?from=wlm2009":
-        raise ValueError("Unexpected GamesBrowserURL (client would not load the expected catalog)")
-    return values[0]
-
+    expected = BASE + "/AppDirectory/Directory.aspx?from=wlm2009"
+    localizations = [node for node in root if local(node.tag) == "LocalizedConfig"]
+    if not localizations:
+        raise ValueError("WLM 2009 configuration missing LocalizedConfig")
+    found = []
+    for localization in localizations:
+        nested = [node for node in localization if local(node.tag) == "AppDirConfig"]
+        for appdir in nested:
+            found.extend((node.text or "").strip() for node in appdir
+                         if local(node.tag) == "GamesBrowserURL")
+        siblings = [(node.text or "").strip() for node in localization
+                    if local(node.tag) == "GamesBrowserURL"]
+        if siblings and found and any(sibling != found[0] for sibling in siblings):
+            raise ValueError("Legacy and native GamesBrowserURL disagree")
+    if len(found) != 1:
+        raise ValueError("Original WLM 2009 expects exactly one nested AppDirConfig/GamesBrowserURL")
+    if found[0] != expected:
+        raise ValueError("Unexpected original MSN GamesBrowserURL")
+    return found[0]
 
 def run() -> dict:
     config = fetch(BASE + "/etc/MsgrConfig?ver=14.0.8117.0416")
