@@ -41,10 +41,12 @@ internal static class StormOriginalGamesActivityProbe {
             DirectUIWindows,IEWindows,ActivityIds,TrustedProcesses;
         public int CandidateWidth,CandidateHeight,ActivityWidth,ActivityHeight;
         public bool ActivityFound;
+        public string CandidateClass;
         public string Signature() {
             return NativeRoots+"|"+VisibleRoots+"|"+ConversationCandidates+"|"+
               DirectUIWindows+"|"+IEWindows+"|"+ActivityIds+"|"+
-              CandidateWidth+"x"+CandidateHeight+"|"+ActivityWidth+"x"+ActivityHeight;
+              CandidateWidth+"x"+CandidateHeight+"|"+ActivityWidth+"x"+ActivityHeight+
+              "|"+CandidateClass;
         }
     }
 
@@ -79,10 +81,14 @@ internal static class StormOriginalGamesActivityProbe {
                 EnumWindows(delegate(IntPtr hwnd,IntPtr ignored){
                     uint pid;GetWindowThreadProcessId(hwnd,out pid);
                     if(pid!=owner)return true;
-                    if(ClassOf(hwnd)!="MSBLWindowClass")return true;
-                    r.NativeRoots++;
+                    string rootClass=ClassOf(hwnd);
+                    bool isNativeRoot=rootClass=="MSBLWindowClass";
+                    if(isNativeRoot)r.NativeRoots++;
                     if(!IsWindowVisible(hwnd))return true;
-                    r.VisibleRoots++;
+                    if(isNativeRoot)r.VisibleRoots++;
+                    // Conversation windows can use classes other than
+                    // MSBLWindowClass: inspect all visible top-level HWNDs
+                    // owned by the verified ORIGINAL Messenger process.
                     RECT rect;
                     if(!GetWindowRect(hwnd,out rect))return true;
                     int w=rect.Right-rect.Left, h=rect.Bottom-rect.Top;
@@ -92,6 +98,7 @@ internal static class StormOriginalGamesActivityProbe {
                         r.ConversationCandidates++;
                         if(w*h > r.CandidateWidth*r.CandidateHeight){
                             r.CandidateWidth=w;r.CandidateHeight=h;
+                            r.CandidateClass=rootClass;
                         }
                         // Inspect only geometry/AutomationId. No UIA.Name or text.
                         try{
@@ -184,7 +191,8 @@ internal static class StormOriginalGamesActivityProbe {
                     " IE_Server="+r.IEWindows+
                     " activityId="+r.ActivityIds+
                     " conversationSize="+r.CandidateWidth+"x"+r.CandidateHeight+
-                    " activitySize="+r.ActivityWidth+"x"+r.ActivityHeight;
+                    " activitySize="+r.ActivityWidth+"x"+r.ActivityHeight+
+                    " candidateClass="+(r.CandidateClass??"none");
                 rows.Add(row);
                 Console.WriteLine(row);
                 last=signature;
