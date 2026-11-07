@@ -172,14 +172,12 @@ internal static class StormNativeEmbedHost {
         RECT rect;
         bool validRect=(guestHwnd!=IntPtr.Zero) &&
                         GetClientRect(guestHwnd,out rect);
-        string loaded="false", wasm="unknown", js="";
+        bool loaded=false, wasm=false;
         if(File.Exists(guestReportFile)) {
             string data=File.ReadAllText(guestReportFile);
             loaded=data.Contains("State=OK");
-            wasm=data.Contains("\\\"wasm\\\":\\\"object\\\"") ||
-                 data.Contains("wasm");
+            wasm=data.Contains("\\\"wasm\\\":\\\"object\\\"");
             // Keep reports small, no page DOM/text/credentials.
-            js= data.Contains("PlayStorPresent") ? "present" : "not-inspected";
         }
         List<string> lines=new List<string>();
         lines.Add("State="+reason);
