@@ -27,7 +27,7 @@ internal static class StormEdgePlaystorLauncher {
     static WebView2 web;
     static Timer stop;
     static string reportPath;
-    static bool smoke, completed, navigationOk;
+    static bool smoke, completed, navigationOk, followFirstGame, catalogClicked, targetNavigated;
     static string entryUrl, status="NOT_STARTED", runtimeInfo="unknown";
     static Stopwatch watch;
 
@@ -124,6 +124,7 @@ internal static class StormEdgePlaystorLauncher {
                     if(i+1>=args.Length) return false;
                     deep=args[++i];break;
                 case "--smoke":smoke=true;break;
+                case "--follow-first-game":followFirstGame=true;break;
                 case "--report":
                     if(i+1>=args.Length) return false;
                     reportPath=Path.GetFullPath(args[++i]);
@@ -138,7 +139,8 @@ internal static class StormEdgePlaystorLauncher {
         }
         if(catalog)url=GamesHome;
         else if(id>0)url=PlayStorOrigin+"/?play="+id;
-        if(url==null || (smoke && reportPath==null) ||
+        if(url==null || (followFirstGame && (!smoke || !catalog)) ||
+           (smoke && reportPath==null) ||
            (!smoke && reportPath!=null))return false;
         return true;
     }
@@ -196,6 +198,24 @@ internal static class StormEdgePlaystorLauncher {
                     if(completed)return;
                     navigationOk=ev.IsSuccess;
                     status=ev.IsSuccess?"PAGE_LOADED":"NAVIGATION_"+ev.WebErrorStatus;
+                    if(smoke && followFirstGame && ev.IsSuccess &&
+                       web.Source!=null &&
+                       web.Source.Host.Equals("msn.hoststorm.com.br",
+                            StringComparison.OrdinalIgnoreCase) && !catalogClicked) {
+                        catalogClicked=true;
+                        // Exercise the real public catalog's first game link
+                        // without opening any browser other than WebView2.
+                        string clicked=await web.CoreWebView2.ExecuteScriptAsync(
+                           "(function(){var a=document.querySelector('a.play');" +
+                           "if(!a||!/^https:\\\/\\\/playstor\\.hoststorm\\.cloud\\\/\\?play=[0-9]+$/i.test(a.href))return false;" +
+                           "a.click();return true;})()");
+                        if(clicked!="true")Finish("DIRECT_PLAYER_LINK_MISSING");
+                        return;
+                    }
+                    if(smoke && followFirstGame && ev.IsSuccess &&
+                       web.Source!=null &&
+                       web.Source.Host.Equals("msn.hoststorm.com.br",
+                            StringComparison.OrdinalIgnoreCase))return;
                     if(smoke){
                         try{
                             await System.Threading.Tasks.Task.Delay(2300);
@@ -232,6 +252,9 @@ internal static class StormEdgePlaystorLauncher {
                 "LabOnly=true",
                 "WLMModified=false",
                 "URLHost="+new Uri(entryUrl).Host,
+                "FinalHost="+(web!=null && web.Source!=null ? web.Source.Host : "none"),
+                "FollowFirstGame="+followFirstGame,
+                "CatalogClickAttempted="+catalogClicked,
                 "NavigationSuccess="+navigationOk,
                 "FeatureStatus="+runtimeInfo,
                 "ElapsedMilliseconds="+watch.ElapsedMilliseconds,
