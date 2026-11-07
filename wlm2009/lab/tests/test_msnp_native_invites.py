@@ -126,6 +126,19 @@ class NativePayloadRegressionTests(unittest.TestCase):
         with self.assertRaises(SpecialMessageNotSentWithDType):
             self.invoke(raw, "A")
 
+    def test_header_without_content_type_does_not_decode_binary_as_text(self):
+        raw = b"MIME-Version: 1.0\r\nX-Debug: 1\r\n\r\n\xff"
+        msg = self.invoke(raw)
+        self.assertEqual(msg.text, "(Unsupported MSNP Content-Type)")
+        self.assertEqual(self.send(msg), raw)
+
+    def test_invalid_utf8_text_does_not_crash_switchboard(self):
+        raw = b"MIME-Version: 1.0\r\nContent-Type: text/plain\r\n\r\n\xff"
+        msg = self.invoke(raw)
+        self.assertEqual(msg.type, MessageType.Chat)
+        self.assertEqual(msg.text, "\ufffd")
+        self.assertEqual(self.send(msg), raw)
+
     def test_text_message_still_reads_as_text(self):
         raw = (
             b"MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n"
