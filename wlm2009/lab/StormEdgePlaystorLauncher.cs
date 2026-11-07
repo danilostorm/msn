@@ -166,7 +166,7 @@ internal static class StormEdgePlaystorLauncher {
         web.Dock=DockStyle.Fill;
         win.Controls.Add(web);
         stop=new Timer();
-        stop.Interval=smoke?14500:0;
+        stop.Interval=14500;
         if(smoke){
             stop.Tick+=(s,e)=>Finish("TIMEOUT");
             stop.Start();
