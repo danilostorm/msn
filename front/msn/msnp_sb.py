@@ -1,6 +1,7 @@
 from typing import Tuple, Any, Optional, List, Set
 import time
 import asyncio
+import re
 from email.parser import Parser
 
 from util.misc import Logger, VoidTaskType
@@ -410,25 +411,29 @@ def messagedata_from_msnp(sender: User, sender_pop_id: Optional[str], ack: str, 
 	# 	\x02\x00\x00\x00Xt\xc4\nN\x0b\xc7\nK\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
 	# etc.
 	
+	# Preserve original MIME bytes for native WLM-to-WLM P2P/game/voice
+	# invitations. Malformed frames must not raise UnboundLocalError and
+	# disconnect the switchboard. They remain unsupported placeholders.
+	headers = None
+	body_raw = b''
 	try:
 		i = data.index(b'\r\n\r\n') + 4
 		headers = Parser().parsestr(data[:i].decode('utf-8'))
 		body_raw = data[i:]
-	except:
-		type = MessageType.Chat
-		text = "(Unsupported MSNP Content-Type)"
+	except (ValueError, UnicodeDecodeError):
+		pass
 	
-	content_type = headers.get_content_type()
+	content_type = headers.get_content_type() if headers is not None else None
 	if content_type is not None:
 		if content_type == 'text/x-msmsgscontrol':
 			type = MessageType.Typing
 			text = ''
 		elif content_type == 'text/x-msnmsgr-datacast':
-			body = body_raw.decode('utf-8')
-			id_start = body.index('ID:') + 3
-			id_end = body.index('\r\n', id_start)
-			id = body[id_start:id_end].strip()
-			if id == '1':
+			# A missing or truncated ID is not a reason to crash a user's
+			# session; nudges use ID: 1, all others remain placeholders.
+			body = body_raw.decode('utf-8', errors='replace')
+			id_match = re.search(r'(?m)^ID:\s*([^\r\n]+)', body)
+			if id_match is not None and id_match.group(1).strip() == '1':
 				type = MessageType.Nudge
 				text = ''
 			else:
