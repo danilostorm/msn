@@ -37,11 +37,16 @@ internal static class StormEdgeSurfaceGuard {
     static string outputFile;
     static readonly List<string> results = new List<string>();
     static int candidateCount;
-    static bool accepted;
 
     // Validate the activity area even if a title/ID has been spoofed by
     // another UI element: never allow root/full-window overlays.
     static bool SafeGeometry(Box root, Box activity) {
+        // Reject NaN/Infinity in ALL coordinates and dimensions before any
+        // comparison: IEEE-754 NaN makes ordinary boundary checks return false.
+        double[] values={root.X,root.Y,root.W,root.H,
+                         activity.X,activity.Y,activity.W,activity.H};
+        foreach(double v in values)
+            if(Double.IsNaN(v)||Double.IsInfinity(v)) return false;
         if (root.W < 500 || root.H < 380) return false; // contact list/login
         if (activity.W < 240 || activity.H < 170) return false;
         if (activity.W > 1500 || activity.H > 1050) return false;
@@ -49,8 +54,6 @@ internal static class StormEdgeSurfaceGuard {
         if (activity.X < root.X+8 || activity.Y < root.Y+8) return false;
         if (activity.X+activity.W > root.X+root.W-8) return false;
         if (activity.Y+activity.H > root.Y+root.H-8) return false;
-        if (Double.IsNaN(activity.X) || Double.IsNaN(activity.Y) ||
-            Double.IsInfinity(activity.W) || Double.IsInfinity(activity.H)) return false;
         return true;
     }
 
