@@ -172,11 +172,13 @@ internal static class StormNativeEmbedHost {
         RECT rect;
         bool validRect=(guestHwnd!=IntPtr.Zero) &&
                         GetClientRect(guestHwnd,out rect);
-        bool loaded=false, wasm=false;
+        bool loaded=false, wasm=false, wasmInstantiated=false, webgl=false;
         if(File.Exists(guestReportFile)) {
             string data=File.ReadAllText(guestReportFile);
             loaded=data.Contains("State=OK");
             wasm=data.Contains("\\\"wasm\\\":\\\"object\\\"");
+            wasmInstantiated=data.Contains("\\\"wasmInstantiate\\\":true");
+            webgl=data.Contains("\\\"webgl\\\":true");
             // Keep reports small, no page DOM/text/credentials.
         }
         List<string> lines=new List<string>();
@@ -193,6 +195,8 @@ internal static class StormNativeEmbedHost {
         lines.Add("GuestClientRectReadable="+validRect);
         lines.Add("WebView2PageLoaded="+loaded);
         lines.Add("WebAssemblyReported="+wasm);
+        lines.Add("WebAssemblyInstantiated="+wasmInstantiated);
+        lines.Add("WebGLContextAvailable="+webgl);
         lines.Add("ElapsedMs="+clock.ElapsedMilliseconds);
         lines.Add("OriginalGameExecuted=false");
         try{File.WriteAllLines(reportFile,lines.ToArray());}catch{}
