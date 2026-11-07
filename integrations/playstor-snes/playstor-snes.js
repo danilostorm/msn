@@ -63,8 +63,22 @@ function xml(list,id){
  items.map(g=>'<Entry><AppID>'+g.id+'</AppID><ID>'+g.id+'</ID><Name>'+esc(g.title)+'</Name><Description>SNES PlayStor - navegador moderno</Description><CategoryID>SNES</CategoryID><Type>Game</Type><URL>'+PLAY+'/?play='+g.id+'</URL></Entry>').join('')+'</AppDir>';
 }
 function configPatch(s){
- if(!/<MsgrConfig[\s>]/i.test(s)||!/<AppDirConfig>/i.test(s)||!/<LocalizedConfig[\s>]/i.test(s)||/<GamesBrowserURL>/i.test(s))return s;
- return s.replace('</AppDirConfig>','</AppDirConfig>\n      <GamesBrowserURL>'+MSN+'/AppDirectory/Directory.aspx?from=wlm2009</GamesBrowserURL>');
+ // WLM 2009 native code looks up LocalizedConfig/AppDirConfig/GamesBrowserURL.
+ // Earlier server responses placed GamesBrowserURL beside AppDirConfig instead.
+ // Preserve that older sibling while ensuring the native nested key exists.
+ if(!/<MsgrConfig[\s>]/i.test(s)||!/<LocalizedConfig[\s>]/i.test(s))return s;
+ const group=/<AppDirConfig>([\s\S]*?)<\/AppDirConfig>/i.exec(s);
+ if(!group)return s;
+ const url=MSN+'/AppDirectory/Directory.aspx?from=wlm2009';
+ const node='<GamesBrowserURL>'+url+'</GamesBrowserURL>';
+ if(!/<GamesBrowserURL[\s>]/i.test(group[1])){
+  s=s.replace(/<\/AppDirConfig>/i,'  '+node+'\n      </AppDirConfig>');
+ }
+ const sibling=/<\/AppDirConfig>([\s\S]*?)<\/LocalizedConfig>/i.exec(s);
+ if(sibling&&!/<GamesBrowserURL[\s>]/i.test(sibling[1])){
+  s=s.replace(/<\/AppDirConfig>/i,'</AppDirConfig>\n      '+node);
+ }
+ return s;
 }
 function active(){
  const r=JSON.parse(fs.readFileSync('/var/lib/storm-msn-ha/role.json','utf8')).active;
