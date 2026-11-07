@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ScriptInfo>
+  <Information>
+    <Name>Storm MSN PlayStor</Name>
+    <Version>0.1.0</Version>
+    <Description>Abre jogos PlayStor pelo Edge WebView2 usando o menu Messenger Plus! do Windows Live Messenger 2009.</Description>
+    <AllowAutoUpdate>false</AllowAutoUpdate>
+  </Information>
+  <InstallDir>StormMSNPlayStor</InstallDir>
+</ScriptInfo>
