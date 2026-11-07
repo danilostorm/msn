@@ -24,6 +24,7 @@ internal static class StormTridentChildHost {
     [DllImport("user32.dll",CharSet=CharSet.Unicode)]
     static extern int GetClassName(IntPtr hwnd,StringBuilder name,int cap);
     [DllImport("user32.dll")] static extern IntPtr GetParent(IntPtr hwnd);
+    [DllImport("user32.dll",SetLastError=true)] static extern IntPtr SetParent(IntPtr hwnd,IntPtr newParent);
     [DllImport("user32.dll",EntryPoint="GetWindowLongW")]
     static extern int GetWindowLong(IntPtr hwnd,int index);
     [DllImport("user32.dll",EntryPoint="SetWindowLongW")]
