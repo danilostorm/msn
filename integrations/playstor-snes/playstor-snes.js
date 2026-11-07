@@ -42,13 +42,13 @@ function renderList(list,q,page){
  const tiles=matches.slice((page-1)*24,page*24).map(g=>'<div class="tile"><div class="cover">'+
   (g.cover?'<img src="'+esc(g.cover)+'" width="90" height="120" alt="">':'SNES')+
   '</div><div class="detail"><strong>'+esc(g.title)+'</strong><div class="sub">Super Nintendo · PlayStor</div>'+
-  '<a class="play" target="_blank" rel="noopener noreferrer" href="'+PLAY+'/?game='+g.id+'">Abrir no PlayStor</a></div></div>').join('');
+  '<a class="play" target="_blank" rel="noopener noreferrer" href="'+PLAY+'/?play='+g.id+'">Jogar no Microsoft Edge</a></div></div>').join('');
  const path='/AppDirectory/Directory.aspx?q='+encodeURIComponent(q);
  const pages='<div class="pages">'+(page>1?'<a href="'+esc(path+'&page='+(page-1))+'">Anterior</a>':'')+
   'Página '+page+' de '+totalPages+(page<totalPages?'<a href="'+esc(path+'&page='+(page+1))+'">Próxima</a>':'')+'</div>';
  return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Storm MSN Jogos — SNES PlayStor</title><style>'+style+'</style></head><body><div class="frame">'+
  '<div class="head"><b>Storm MSN · Jogos</b><div>Catálogo SNES conectado ao PlayStor</div></div><div class="main">'+
- '<div class="note"><b>Teste SNES:</b> jogos abertos no navegador moderno, mediante login no PlayStor. O Windows Live Messenger 2009 exibe o catálogo, mas não executa emuladores WebAssembly no navegador antigo. Partidas entre contatos ainda não são sincronizadas.</div>'+
+ '<div class="note"><b>Teste SNES:</b> jogos abertos diretamente no player pelo navegador Microsoft Edge, após login na conta PlayStor. A integração WebView2 na área original de jogos do Messenger ainda está em desenvolvimento. Partidas entre contatos ainda não são sincronizadas.</div>'+
  '<form class="finder" method="get" action="/AppDirectory/Directory.aspx"><label for="q">Pesquisar jogo: </label><input name="q" id="q" maxlength="80" value="'+esc(q)+'" placeholder="Mario, Zelda, Donkey Kong"><button>Buscar</button></form>'+
  '<p>'+matches.length+' jogos encontrados · '+list.length+' no catálogo SNES</p>'+(tiles||'<div class="empty">Nenhum jogo encontrado.</div>')+pages+
  '</div><div class="foot">PlayStor fornece apenas metadados e capas neste catálogo; ROMs exigem conta PlayStor. Projeto independente.</div></div></body></html>';
@@ -56,7 +56,7 @@ function renderList(list,q,page){
 function xml(list,id){
  const items=id?list.filter(g=>g.id===Number(id)):list.slice(0,100);
  return '<?xml version="1.0" encoding="utf-8"?><AppDir><Category><CategoryID>SNES</CategoryID><Locale>pt-BR</Locale><CategoryName>Super Nintendo</CategoryName></Category>'+
- items.map(g=>'<Entry><AppID>'+g.id+'</AppID><ID>'+g.id+'</ID><Name>'+esc(g.title)+'</Name><Description>SNES PlayStor - navegador moderno</Description><CategoryID>SNES</CategoryID><Type>Game</Type><URL>'+PLAY+'/?game='+g.id+'</URL></Entry>').join('')+'</AppDir>';
+ items.map(g=>'<Entry><AppID>'+g.id+'</AppID><ID>'+g.id+'</ID><Name>'+esc(g.title)+'</Name><Description>SNES PlayStor - navegador moderno</Description><CategoryID>SNES</CategoryID><Type>Game</Type><URL>'+PLAY+'/?play='+g.id+'</URL></Entry>').join('')+'</AppDir>';
 }
 function configPatch(s){
  if(!/<MsgrConfig[\s>]/i.test(s)||!/<AppDirConfig>/i.test(s)||!/<LocalizedConfig[\s>]/i.test(s)||/<GamesBrowserURL>/i.test(s))return s;
